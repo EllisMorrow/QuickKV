@@ -1,0 +1,900 @@
+- ✅ ``bm:确定、已完成、完成了、验证通过、通过了、确认无误、检查通过、正解、可用、落地、搞定了、ok了、done、pass、完成确认、完成、确认、通过、正确、好了、搞定、ok、check、yes``
+- ❌ ``bm:不通过、未完成、错了、错误项、失败项、驳回、删除、废弃、否决、不可用、失效、取消掉、fail、reject、错误取消、错误、取消、失败、不行、否定、错、叉、no、wrong、cancel``
+- ⭕ ``bm:圈出、圈重点、可接受、允许项、正向项、保留、圈住、通过但注意、圈选同意、圈、同意、允许、可以、正向、circle``
+- 🟢 ``bm:正常状态、绿灯、可执行、低风险、顺利、健康、运行正常、上涨状态、多头状态、启用、绿色状态、绿色、正常、通过、上涨、多头、green、long``
+- 🔴 ``bm:异常状态、红灯、高风险、阻塞、失败状态、下跌状态、空头状态、禁用、严重问题、红色状态、红色、异常、下跌、空头、风险、警报、red、short``
+- 🟡 ``bm:待观察、观察中、中风险、提醒项、预警项、需要注意、谨慎、黄色预警、待确认、黄色提醒、黄色、提醒、注意、观察、预警、yellow、watch``
+- 🔵 ``bm:信息项、说明项、记录项、冷静观察、普通信息、蓝色标记、蓝色信息、蓝色、信息、说明、冷静、记录、blue、info``
+- ⚪ ``bm:白色空白、白色、空白、中性、待定、white``
+- ⚫ ``bm:黑色重点、黑色、重点、压缩、沉重、black``
+- ⭐ ``bm:收藏项、重点项、常用、优先、标星、重要但不紧急、星标收藏、星标、收藏、重点、喜欢、star、favorite``
+- 🌟 ``bm:亮点、闪光点、精彩、高光时刻、突出表现、优秀、加分项、闪亮重点、闪亮、高光、突出、highlight、sparkle``
+- ✨ ``bm:优化、润色、美化、精修、变好、漂亮、质感、体验提升、polish、闪光优化、闪光、灵感、sparkles``
+- 💡 ``bm:点子、洞察、启发、灵光、想通了、关键想法、认知突破、idea、灵感想法、灵感、想法、insight``
+- 🔥 ``bm:热门、爆发、很强、强势、火热、燃、重点关注、强信号、爆款、fire、火爆重要、火、强烈、重要、hot``
+- ⚡ ``bm:效率、快速、加速、触发、强力、即时、性能、速度、闪击、fast、闪电效率、闪电、强、power``
+- 🚀 ``bm:起飞、启动、发布、上线、推进、增长、突破、加速增长、项目启动、launch、启动起飞、rocket``
+- 🎯 ``bm:交易目标、核心矛盾、关键点位、命中目标、目标命中、目标、命中、聚焦、核心、target、goal、focus``
+- 📌 ``bm:关键位置、重点样本、钉住问题、标记样本、钉住标记、钉住、固定、标记、待办、pin、pinned``
+- 🔖 ``bm:书签、收藏、标记、稍后看、保留入口、bookmark、书签标记、标签、mark``
+- 🏷️ ``bm:标签、分类、标注、元数据、关键词、tag、label、标签分类``
+- 📍 ``bm:定位、位置、坐标、关键位置、所在处、地点标记、location、位置定位、地点、place``
+- 🧭 ``bm:方向、指南、路线、判断方向、导航、路径选择、compass、指南方向、判断、direction``
+- 🧩 ``bm:系统模块、交易结构、结构拼接、插件模块、拼图模块、拼图、模块、组件、组合、结构、piece、module``
+- 🧱 ``bm:基础、底座、构建块、积木、基石、block、brick、砖块基础、砖块、构建``
+- 🛠️ ``bm:修复、工具、维护、调整、改造、打磨、工具化、tooling、工具修复、设置、tool、fix``
+- ⚙️ ``bm:设置、配置、参数、选项、系统配置、机制、齿轮、config、设置齿轮、系统、option``
+- 🔧 ``bm:调试、修理、调整、修补、修bug、微调、wrench、tune、扳手调整、扳手``
+- 🧰 ``bm:工具箱、工具集、资源包、装备、kit、toolbox、资源``
+- 🪄 ``bm:魔法、自动化、增强、神奇、智能、AI增强、一键优化、魔法增强、自动、magic、auto``
+- 🧪 ``bm:模拟盘、测试样本、策略实验、验证假设、实验测试、实验、测试、试验、验证、test、experiment``
+- 🧬 ``bm:机制、结构、底层、基因、DNA、原理、内在逻辑、结构机制、mechanism``
+- 🔬 ``bm:分析、观察、细看、研究、显微镜、细节检查、inspect、观察分析、细节、microscope、analyze``
+- 📊 ``bm:量能对比、统计证据、样本数据、数据复盘、图表数据、图表、数据、统计、分析、chart、data``
+- 📈 ``bm:突破、走强、趋势增强、优势增强、做多线索、上涨趋势、上涨、趋势、增长、看多、曲线、up、bull``
+- 📉 ``bm:回撤、走弱、跌破、趋势减弱、做空线索、下跌趋势、下跌、趋势、回落、看空、曲线、down、bear``
+- 🧮 ``bm:计算、统计、量化、数字、测算、公式、算账、calculator、计算统计、math``
+- 🧠 ``bm:交易判断、认知校准、系统思考、市场理解、大脑思考、大脑、思考、认知、脑子、thinking、mind``
+- 👀 ``bm:观察、看看、留意、盯盘、关注、看一眼、watch、look、观察看看、眼睛``
+- 🔎 ``bm:查看、搜索、检查、审查、放大看、初步查看、inspect、搜索查看、放大、查找、search``
+- 🔍 ``bm:找证据、查样本、复盘检索、细看结构、检索查找、检索、查找、搜索、放大镜、search、find``
+- 📝 ``bm:交易日志、复盘笔记、记录样本、写日志、记录笔记、记录、笔记、写、备忘、note、write``
+- 📒 ``bm:笔记本、日志、本子、手账、记录本、notebook、记录、notes``
+- 📚 ``bm:知识、资料、学习、书库、知识库、素材、books、知识资料、书、knowledge``
+- 📖 ``bm:阅读、文档、说明书、打开书、读文档、read、doc、阅读文档``
+- 🗂️ ``bm:分类、归档、索引、文件分类、资料整理、archive、文件、folder``
+- 📁 ``bm:文件夹、目录、文件目录、项目目录、folder、dir``
+- 🗃️ ``bm:数据库、资料柜、归档库、存档、卡片盒、archive box、归档、archive、box``
+- 🧾 ``bm:清单、凭据、收据、列表、检查单、票据、receipt、清单凭据、list``
+- 📋 ``bm:剪贴板、清单、任务列表、待办、复制、检查清单、clipboard、剪贴板清单、任务、todo``
+- 🧷 ``bm:附件、关联、固定、回形针、附加材料、attach、回形针附件、paperclip``
+- 🔗 ``bm:链接、关联、关系、引用、连接、外链、双链、relation、链接关联、link``
+- ⛓️ ``bm:约束、链条、强关联、绑定、限制、依赖关系、chain、链条约束、连接``
+- 🪢 ``bm:复杂关系、缠绕、打结、纠缠、难解、knot、结绳关系、结、关系、复杂``
+- 💬 ``bm:消息、评论、对话、chat、对话评论、聊天、comment``
+- 🗨️ ``bm:发言、气泡、评论气泡、说话、speech bubble、气泡发言、评论、speech、bubble``
+- 📣 ``bm:公告、传播、喊话、推广、宣发、announce、公告传播、megaphone``
+- 📢 ``bm:通知、广播、提醒、扩音、notice、broadcast、通知广播、喇叭``
+- 🔔 ``bm:提醒、通知、铃铛、提示、消息提醒、notification、铃声提醒、铃声、bell``
+- ⏰ ``bm:闹钟、提醒、截止、deadline、到点、时间提醒、闹钟提醒、时间、alarm``
+- ⏳ ``bm:等待确认、等待入场、进行中、未完成走势、等待沙漏、等待、沙漏、倒计时、wait、pending``
+- ⌛ ``bm:时间耗尽、到期、结束、截止已到、超时、沙漏、时间、hourglass``
+- ⏱️ ``bm:计时、秒表、耗时、速度、性能计时、stopwatch、秒表计时、timer``
+- 🕒 ``bm:时间、节点、三点、时间点、clock、time、时间节点``
+- 📅 ``bm:日历、日期、计划、日程、calendar、date、日历日期``
+- 🗓️ ``bm:日程、安排、排期、时间表、计划表、schedule、日程安排、计划、calendar``
+- 🧿 ``bm:防呆、避坑、保护、防护、护身符、guard、防呆保护、safe``
+- 🛡️ ``bm:风控、保护本金、防守、风险边界、盾牌安全、盾牌、安全、防护、保护、security、shield``
+- ⚠️ ``bm:交易风险、风险提示、低级错误、陷阱、注意风险、警告风险、警告、风险、注意、危险、warning、risk``
+- 🚨 ``bm:紧急风险、强警报、重大异常、不能忽略、警报紧急、警报、紧急、风险、报警、alert、emergency``
+- ❗ ``bm:重要、强提醒、感叹、注意、必须看、重点提醒、important、感叹重要``
+- ❓ ``bm:问题、疑问、为什么、待解、提问、问号、question、问题疑问、ask``
+- ❔ ``bm:轻疑问、待确认、小问题、不确定、question mark、疑问、问题、question``
+- 💭 ``bm:想法、思绪、内心、脑补、念头、想一想、thought、想法内心``
+- 🌀 ``bm:混乱、循环、漩涡、复杂、卡住、混沌、chaos、混乱循环、loop``
+- ♻️ ``bm:复用、循环、回收、迭代、再利用、reuse、cycle、循环复用``
+- 🔁 ``bm:复盘、循环验证、重复出现、再看一次、重复循环、重复、循环、再次、repeat、loop``
+- 🔂 ``bm:单项重复、循环一次、重复一次、repeat one``
+- 🔄 ``bm:同步、重建索引、刷新缓存、更新状态、刷新同步、刷新、更新、reload、sync``
+- ⬆️ ``bm:向上、上升、增加、上移、上涨、up``
+- ⬇️ ``bm:向下、下降、减少、下移、下跌、down``
+- ➡️ ``bm:下一步、继续、向右、推进、然后、next、right、向右下一步``
+- ⬅️ ``bm:返回、回退、向左、上一步、撤回、back、left、向左返回``
+- ↔️ ``bm:双向、互相、左右、对照、双向关系、two way、both``
+- ↕️ ``bm:上下、垂直、升降、纵向、vertical``
+- 🔼 ``bm:上三角、展开、上行、上涨提示、up triangle、上、上涨``
+- 🔽 ``bm:下三角、收起、下行、下跌提示、down triangle、下、下跌``
+- ⏫ ``bm:快速上升、加速上涨、快上、fast up``
+- ⏬ ``bm:快速下降、加速下跌、快下、fast down``
+- ➕ ``bm:新增、增加、加号、添加、加仓、plus、add、加号增加``
+- ➖ ``bm:减少、删除、减号、移除、减仓、minus、remove、减号减少``
+- ✳️ ``bm:特殊标记、星号、重点标记、asterisk、星号标记、特殊、标记``
+- 🔺 ``bm:上涨标记、红三角上、上行、突破向上、triangle up、红三角、上涨``
+- 🔻 ``bm:下跌标记、红三角下、下行、跌破向下、triangle down、红三角、下跌``
+- 💯 ``bm:满分、百分百、确定、完美、非常好、100分、hundred、满分确定``
+- 😀 ``bm:开心、笑脸、高兴、愉快、普通开心、smile、开心笑脸、grin``
+- 😃 ``bm:大笑、开心、张嘴笑、快乐、happy``
+- 😄 ``bm:哈哈、眯眼笑、开心笑、laugh、开心``
+- 😁 ``bm:露齿笑、尴尬笑、开心、grin``
+- 😆 ``bm:笑死、爆笑、笑到眯眼、太好笑、laugh、开心``
+- 😅 ``bm:苦笑、冷汗、尴尬、压力、绷不住、sweat smile、苦笑冷汗``
+- 😂 ``bm:笑哭、笑死、哈哈、泪笑、太好笑、lol``
+- 🤣 ``bm:爆笑、笑疯、笑不活、满地打滚、rofl、满地打滚笑``
+- 🙂 ``bm:微笑、礼貌、平静、淡定、轻微微笑、slight smile``
+- 🙃 ``bm:反讽、倒脸、无奈、阴阳、倒过来、upside down、倒脸反讽``
+- 😉 ``bm:眨眼、暗示、懂的、wink``
+- 😊 ``bm:温暖、害羞、微笑、开心、柔和、blush、温暖微笑``
+- 😇 ``bm:天使、无辜、善良、乖、angel``
+- 🥰 ``bm:喜欢、幸福、爱、温柔、暖、love、喜爱幸福``
+- 😍 ``bm:爱了、惊艳、爱心眼、喜欢、迷恋、heart eyes``
+- 🤩 ``bm:星星眼、惊艳、崇拜、太棒了、amazing``
+- 😘 ``bm:飞吻、亲亲、kiss``
+- 😗 ``bm:亲吻、啵、kiss``
+- 😚 ``bm:闭眼亲吻、亲吻、害羞、kiss``
+- 😋 ``bm:好吃、馋、满足、美味、yum、馋嘴``
+- 😛 ``bm:吐舌、调皮、playful``
+- 😜 ``bm:眨眼吐舌、调皮、鬼脸、wink tongue``
+- 🤪 ``bm:疯了、乱来、抽象、发癫、crazy、疯狂脸``
+- 😝 ``bm:眯眼吐舌、鬼脸、调皮、玩笑``
+- 🤑 ``bm:赚钱、收益、钱眼、利润、money、钱``
+- 🤗 ``bm:抱抱、拥抱、支持、欢迎、hug``
+- 🤭 ``bm:捂嘴笑、捂嘴、偷笑、oops``
+- 🫢 ``bm:捂嘴惊讶、捂嘴、惊讶、震惊、oops``
+- 🫣 ``bm:偷看、害羞、半遮、peek``
+- 🤫 ``bm:安静、保密、别说、嘘、quiet、嘘安静``
+- 🤔 ``bm:思考、疑惑、琢磨、想想、需要判断、thinking``
+- 🫡 ``bm:收到、敬礼、遵命、尊重、明白、roger、敬礼收到、respect``
+- 🤐 ``bm:闭嘴、保密、不说、zip``
+- 🤨 ``bm:怀疑、不信、挑眉、质疑、skeptical、怀疑挑眉``
+- 😐 ``bm:中性、无语、平静、没表情、neutral、中性脸``
+- 😑 ``bm:无语、冷漠、平脸、不想说、expressionless``
+- 😶 ``bm:沉默、无话、空白、闭嘴、silent``
+- 🫥 ``bm:虚线脸、消失、透明、存在感低、dotted``
+- 😶‍🌫️ ``bm:迷茫、云里雾里、不清楚、混乱、看不清、unclear、雾``
+- 😏 ``bm:得意、坏笑、暗爽、smirk、得意坏笑``
+- 😒 ``bm:不爽、无奈、烦、嫌弃、unamused``
+- 🙄 ``bm:翻白眼、无语、懒得说、eyeroll``
+- 😬 ``bm:尴尬、紧张、咬牙、grimace、龇牙尴尬``
+- 😮‍💨 ``bm:叹气、松一口气、疲惫、无奈叹气、sigh``
+- 🤥 ``bm:说谎、鼻子变长、lie``
+- 😌 ``bm:释然、放松、安心、relieved``
+- 😔 ``bm:低落、沮丧、sad``
+- 😪 ``bm:困倦、困、疲惫、打瞌睡、sleepy``
+- 🤤 ``bm:流口水、馋、想要、drool``
+- 😴 ``bm:睡觉、困、休息、sleep``
+- 🥱 ``bm:打哈欠、哈欠、困、无聊、yawn``
+- 😷 ``bm:口罩、生病、防护、mask``
+- 🤒 ``bm:发烧、生病、体温、sick``
+- 🤕 ``bm:受伤、绷带、hurt``
+- 🤢 ``bm:恶心、想吐、nauseated``
+- 🤮 ``bm:呕吐、吐了、恶心、vomit``
+- 🤧 ``bm:打喷嚏、喷嚏、感冒、sneeze``
+- 🥵 ``bm:热脸、热、上火、压力、hot``
+- 🥶 ``bm:冷脸、冷、冻、寒冷、cold``
+- 🥴 ``bm:晕乎、晕、醉、迷糊、woozy``
+- 😵 ``bm:晕倒、晕、震惊、头晕、dizzy``
+- 😵‍💫 ``bm:眩晕、混乱、晕圈、dizzy``
+- 🤯 ``bm:爆头震惊、震惊、爆炸、脑裂、mind blown``
+- 😕 ``bm:困惑、疑惑、confused``
+- 🫤 ``bm:斜嘴无奈、无奈、怀疑、斜嘴、meh``
+- 😟 ``bm:担忧、担心、worried``
+- 🙁 ``bm:小难过、难过、不开心、frown``
+- ☹️ ``bm:难过、沮丧、sad``
+- 😮 ``bm:惊讶、张嘴、surprised``
+- 😯 ``bm:沉默惊讶、惊讶、意外、hushed``
+- 😲 ``bm:震惊、惊呆、astonished``
+- 😳 ``bm:脸红震惊、脸红、尴尬、震惊、flushed``
+- 🥺 ``bm:委屈请求、委屈、求求、可怜、pleading``
+- 🥹 ``bm:忍泪感动、感动、忍泪、泪目、touched``
+- 😦 ``bm:担心张嘴、担心、惊讶、frown``
+- 😧 ``bm:痛苦惊讶、痛苦、担心、anguished``
+- 😨 ``bm:害怕、恐惧、fear``
+- 😰 ``bm:冷汗紧张、紧张、冷汗、害怕、anxious``
+- 😥 ``bm:失望流汗、失望、流汗、sad sweat``
+- 😢 ``bm:哭、难过、伤心、sad cry、哭泣``
+- 😭 ``bm:大哭、崩溃、泪奔、破防、sob``
+- 😱 ``bm:惊恐、尖叫、吓死、scream``
+- 😖 ``bm:纠结、痛苦、confounded``
+- 😣 ``bm:忍耐、难受、persevere``
+- 😞 ``bm:失望、沮丧、disappointed``
+- 😓 ``bm:冷汗、压力、尴尬、sweat``
+- 😩 ``bm:疲惫、累、厌倦、weary``
+- 😫 ``bm:累死、崩溃、tired``
+- 😤 ``bm:不服、生气、哼气、倔强、triumph``
+- 😡 ``bm:愤怒、生气、怒了、angry``
+- 😠 ``bm:生气、不满、angry``
+- 🤬 ``bm:爆粗愤怒、愤怒、爆粗、骂人、cursing``
+- 😈 ``bm:恶魔坏笑、恶魔、坏笑、devil``
+- 👿 ``bm:生气恶魔、恶魔、生气、angry devil``
+- 💀 ``bm:死了、笑死、骷髅、完蛋、dead``
+- ☠️ ``bm:危险骷髅、危险、有毒、骷髅、danger``
+- 💩 ``bm:便便、屎、垃圾、吐槽、poop``
+- 🤡 ``bm:小丑、荒谬、离谱、clown``
+- 👻 ``bm:鬼魂、鬼、幽灵、ghost``
+- 👽 ``bm:外星人、奇怪、alien``
+- 🤖 ``bm:机器人、AI、bot、自动化、智能体``
+- 👋 ``bm:你好、再见、挥手、打招呼、hello、bye、挥手打招呼``
+- 🤚 ``bm:举手掌、举手、停、手掌、raised hand``
+- 🖐️ ``bm:张开手、手掌、五指、停止、hand``
+- ✋ ``bm:停止、别动、暂停、stop、停止举手、举手``
+- 🖖 ``bm:瓦肯手势、瓦肯、手势、vulcan``
+- 🫱 ``bm:右手、向右、hand right``
+- 🫲 ``bm:左手、向左、hand left``
+- 🫳 ``bm:掌心向下、向下、按住、hand down``
+- 🫴 ``bm:掌心向上、接住、给予、hand up``
+- 👌 ``bm:可以、没问题、完美、OK、ok、OK手势``
+- 🤌 ``bm:捏手、捏、精确、意大利、pinched``
+- 🤏 ``bm:一点、小、少量、微小、little、一点点``
+- ✌️ ``bm:胜利、耶、剪刀手、victory、胜利剪刀手``
+- 🤞 ``bm:好运、祈愿、保佑、wish、祈愿好运、交叉手指``
+- 🫰 ``bm:比心、爱心、支持、heart hand、比心手、钱``
+- 🤟 ``bm:爱你手势、爱你、摇滚、love you``
+- 🤘 ``bm:摇滚、酷、rock``
+- 🤙 ``bm:联系、打电话、call me、回头联系、打电话手势、电话``
+- 👈 ``bm:左指、左、指向、back``
+- 👉 ``bm:右指、右、指向、next``
+- 👆 ``bm:上指、上、指向、up``
+- 🖕 ``bm:中指、粗鲁、fuck``
+- 👇 ``bm:下指、下、指向、down``
+- ☝️ ``bm:第一、注意、重点、指出、one、第一指出``
+- 🫵 ``bm:指向你、你、指向、target you``
+- 👍 ``bm:赞、同意、支持、可以、点赞、认可、like、good、赞同点赞``
+- 👎 ``bm:反对、不好、差评、不认可、dislike、bad、反对倒赞``
+- ✊ ``bm:拳头、加油、抵抗、fist``
+- 👊 ``bm:出拳、碰拳、punch``
+- 🤛 ``bm:左拳、碰拳、fist left``
+- 🤜 ``bm:右拳、碰拳、fist right``
+- 👏 ``bm:鼓掌、赞赏、掌声、好评、clap``
+- 🙌 ``bm:庆祝、万岁、太好了、hooray、举手庆祝、举手``
+- 🫶 ``bm:双手比心、比心、爱、支持、heart hands``
+- 👐 ``bm:张开双手、张开、拥抱、open hands``
+- 🤲 ``bm:捧手、捧、祈祷、接住、palms up``
+- 🤝 ``bm:握手、合作、成交、达成一致、agreement、握手合作、agree``
+- 🙏 ``bm:谢谢、拜托、感谢、祈祷、please、thanks、双手合十``
+- ✍️ ``bm:写字、签名、记录、撰写、write``
+- 💪 ``bm:力量、加油、肌肉、坚持、strong、力量肌肉``
+- 🦾 ``bm:机械臂、增强、力量、robot arm``
+- 🦿 ``bm:机械腿、辅助、robot leg``
+- 👂 ``bm:耳朵倾听、耳朵、听、倾听、listen``
+- 🧏 ``bm:聋人、听不见、聋、deaf``
+- 👃 ``bm:鼻子、闻、nose``
+- 👣 ``bm:路径、脚印、轨迹、踪迹、footprints、脚印路径``
+- 🧍 ``bm:站立、人、stand``
+- 🚶 ``bm:走路、步行、walk``
+- 🏃 ``bm:跑步、速度、快、run``
+- 🧘 ``bm:冥想、放松、平静、冷静、meditation``
+- 🧑‍💻 ``bm:程序员、开发、写代码、码农、编程、coder、developer``
+- 👨‍💻 ``bm:男程序员、程序员、开发、码农、developer``
+- 👩‍💻 ``bm:女程序员、程序员、开发、developer``
+- 🧑‍🏫 ``bm:老师教学、老师、教学、讲解、teacher``
+- 🧑‍🔬 ``bm:科学家、实验、研究、scientist``
+- 🧑‍🎨 ``bm:艺术家、艺术、创作、artist``
+- 🧑‍🚀 ``bm:宇航员、探索、space``
+- 🧙 ``bm:法师、魔法、wizard``
+- 🦸 ``bm:英雄、拯救、hero``
+- 🕵️ ``bm:侦探、调查、detective``
+- 💃 ``bm:跳舞、开心、dance``
+- 🕺 ``bm:男跳舞、跳舞、开心、dance``
+- 👥 ``bm:团队、多人、用户、人群、people、多人团队``
+- 🫂 ``bm:拥抱、支持、陪伴、安慰、hug、拥抱二人``
+- ❤️ ``bm:爱、喜欢、红心、真爱、heart、love、红心爱``
+- 🧡 ``bm:橙心、温暖、喜欢、支持、orange heart``
+- 💛 ``bm:黄心、友好、阳光、yellow heart、温暖``
+- 💚 ``bm:绿心、健康、支持、green heart、自然``
+- 💙 ``bm:蓝心、信任、冷静、blue heart``
+- 💜 ``bm:紫心、浪漫、神秘、purple heart、喜欢``
+- 🖤 ``bm:黑心、酷、黑色、black heart、沉重``
+- 🤍 ``bm:白心、纯净、白色、white heart、支持``
+- 🤎 ``bm:棕心、稳定、brown heart``
+- 💔 ``bm:心碎、难过、破裂、break heart``
+- ❤️‍🔥 ``bm:燃烧的心、热爱、燃烧、激情、heart fire``
+- ❤️‍🩹 ``bm:修复的心、修复、疗愈、恢复、healing heart``
+- 💕 ``bm:双心、喜欢、甜、two hearts``
+- 💞 ``bm:旋转心、爱意、心动``
+- 💓 ``bm:跳动心、心跳、心动、heartbeat``
+- 💗 ``bm:增长爱心、心动、喜欢、growing heart、增长心、增长的心``
+- 💖 ``bm:闪亮爱心、喜欢、可爱、sparkle heart、闪亮心``
+- 💘 ``bm:丘比特心、一见钟情、箭心、cupid``
+- 💝 ``bm:礼物心、礼物、爱心、present heart``
+- 💟 ``bm:心形装饰、心形、装饰、heart decoration``
+- ☮️ ``bm:和平、和解、peace``
+- ☯️ ``bm:阴阳、平衡、yinyang``
+- 🕉️ ``bm:奥姆、冥想、om``
+- ☪️ ``bm:星月、符号、crescent``
+- ✡️ ``bm:六芒星、符号、star david``
+- ☸️ ``bm:法轮、符号、dharma``
+- ♈ ``bm:白羊座、白羊、星座、aries``
+- ♉ ``bm:金牛座、金牛、星座、taurus``
+- ♊ ``bm:双子座、双子、星座、gemini``
+- ♋ ``bm:巨蟹座、巨蟹、星座、cancer``
+- ♌ ``bm:狮子座、狮子、星座、leo``
+- ♍ ``bm:处女座、处女、星座、virgo``
+- ♎ ``bm:天秤座、天秤、星座、libra``
+- ♏ ``bm:天蝎座、天蝎、星座、scorpio``
+- ♐ ``bm:射手座、射手、星座、sagittarius``
+- ♑ ``bm:摩羯座、摩羯、星座、capricorn``
+- ♒ ``bm:水瓶座、水瓶、星座、aquarius``
+- ♓ ``bm:双鱼座、双鱼、星座、pisces``
+- 💻 ``bm:电脑、笔记本、计算机、laptop、电脑办公、办公``
+- 🖥️ ``bm:屏幕、显示器、desktop、台式电脑、台式、电脑``
+- ⌨️ ``bm:键盘、输入、打字、keyboard、键盘输入``
+- 🖱️ ``bm:鼠标、点击、mouse``
+- 🖲️ ``bm:轨迹球、鼠标、trackball``
+- 💾 ``bm:保存软盘、保存、软盘、存档、save``
+- 💿 ``bm:光盘、磁盘、disc``
+- 📀 ``bm:DVD光盘、DVD、光盘、disc``
+- 🧑‍💼 ``bm:职场人、职场、商务、工作、office``
+- 💼 ``bm:公文包、工作、商务、briefcase``
+- 📎 ``bm:附件、回形针、attach、连接、paperclip``
+- 🖇️ ``bm:双回形针、附件、连接、clips``
+- 📏 ``bm:直尺、测量、长度、ruler、规则``
+- 📐 ``bm:尺子、测量、规范、ruler、三角尺、geometry``
+- ✂️ ``bm:剪刀、剪切、cut``
+- 🖊️ ``bm:笔、签字笔、写、pen、钢笔``
+- 🖋️ ``bm:墨水笔、签字、fountain pen``
+- ✒️ ``bm:笔尖、写作、nib``
+- 🖌️ ``bm:画笔、绘画、brush``
+- 🖍️ ``bm:蜡笔、标记、crayon``
+- 📄 ``bm:文件、页面、文档、page、文件页、纸张``
+- 📃 ``bm:卷曲页面、页面、文档、paper``
+- 📑 ``bm:标签页、分页、资料、tabs、书签、bookmark tabs``
+- 📜 ``bm:文档、卷轴、规则、协议、scroll、历史、文献``
+- 📔 ``bm:装饰笔记本、笔记本、日志、notebook``
+- 📕 ``bm:红书、书、book``
+- 📗 ``bm:绿书、书、book``
+- 📘 ``bm:蓝书、书、book``
+- 📙 ``bm:橙书、书、book``
+- 📰 ``bm:报纸、新闻、news``
+- 🗞️ ``bm:卷报纸、报纸、新闻、newspaper``
+- 🔐 ``bm:锁钥安全、锁、安全、加密、privacy``
+- 🔒 ``bm:锁定、加密、安全、lock、closed lock``
+- 🔓 ``bm:解锁、开放、unlock``
+- 🔑 ``bm:钥匙、权限、密钥、key``
+- 🗝️ ``bm:老钥匙、关键、key、钥匙、old key``
+- 📨 ``bm:收件、来信、incoming mail、邮件、message``
+- 📩 ``bm:收邮件、收件、邮件、inbox``
+- 📧 ``bm:邮件、电子邮件、email、邮箱``
+- 📥 ``bm:接收、输入、下载、inbox、收件箱``
+- 📤 ``bm:发送、发出、输出、outbox、发件箱、上传``
+- 📦 ``bm:包裹、包、发布包、package、交付``
+- 📫 ``bm:邮箱有信、邮箱、邮件、mailbox``
+- 📮 ``bm:邮筒、投递、postbox``
+- 🗳️ ``bm:投票箱、投票、决策、vote``
+- ✉️ ``bm:信封、邮件、letter``
+- 📪 ``bm:空邮箱、无邮件、mailbox empty``
+- 🧑‍🎓 ``bm:学生、学习、毕业、student``
+- 🎓 ``bm:毕业帽、毕业、学习、学位、graduation``
+- 🏫 ``bm:学校、学习、school``
+- 🏛️ ``bm:机构建筑、机构、学院、政府、building``
+- 🧑‍⚖️ ``bm:法官、判断、规则、judge``
+- 🧑‍🚒 ``bm:消防员、救火、firefighter``
+- 🧑‍⚕️ ``bm:医护、医生、健康、healthcare``
+- 🧫 ``bm:培养皿、实验、样本、petri``
+- ⚗️ ``bm:蒸馏器、实验、化学、炼金、alembic``
+- 🛰️ ``bm:卫星、远程、定位、satellite、信号、监控``
+- 📡 ``bm:信号、无线、广播、signal、天线信号、天线、接收、antenna``
+- 🔋 ``bm:电池、续航、电量、battery、energy``
+- 🪫 ``bm:低电量、没电、battery low``
+- 🔌 ``bm:插头、连接、电源、plug``
+- 🔦 ``bm:手电筒、手电、照明、查找、flashlight``
+- 🕯️ ``bm:蜡烛、仪式、微光、candle``
+- 🧯 ``bm:灭火器、救火、风险控制、fire extinguisher``
+- 🛢️ ``bm:油桶、资源、原油、oil``
+- 🧲 ``bm:磁铁、吸引、吸附、magnet、磁铁吸引``
+- 🪜 ``bm:梯子、上升、步骤、ladder``
+- ⚖️ ``bm:天平权衡、权衡、平衡、法律、balance``
+- ⚰️ ``bm:棺材、死亡、结束、coffin``
+- 🪦 ``bm:墓碑、结束、纪念、tombstone``
+- 🧹 ``bm:清理、打扫、整理、cleanup、清扫、clean``
+- 🧺 ``bm:篮子、收集、basket``
+- 🧽 ``bm:海绵、清洁、擦拭、sponge``
+- 🪣 ``bm:桶、容器、bucket``
+- 🧴 ``bm:瓶子、液体、lotion``
+- 🪛 ``bm:螺丝刀、维修、调试、screwdriver、工具``
+- 🔩 ``bm:螺母螺栓、螺母、螺栓、连接、nut bolt``
+- ⚒️ ``bm:锤镐、工具、施工、hammer pick``
+- 🪓 ``bm:斧头、砍、axe``
+- ⛏️ ``bm:镐、挖掘、pick``
+- 🧨 ``bm:爆竹、爆炸、风险、炸、dynamite``
+- 💣 ``bm:炸弹、爆炸、危险、bomb``
+- ☀️ ``bm:太阳、晴天、白天、阳光、sun、太阳晴天``
+- 🌤️ ``bm:晴间多云、阳光、cloud sun``
+- ⛅ ``bm:多云、云、cloudy``
+- 🌥️ ``bm:云遮日、阴天、多云、cloud``
+- ☁️ ``bm:云、云端、阴天、cloud、云朵``
+- 🌦️ ``bm:太阳雨、阵雨、rain sun``
+- 🌧️ ``bm:下雨、雨天、雨、rain``
+- ⛈️ ``bm:雷雨、暴雨、storm``
+- 🌩️ ``bm:闪电云、闪电、雷、lightning``
+- 🌨️ ``bm:下雪、雪、snow``
+- ❄️ ``bm:雪、寒冷、降雪、snow、雪花、冰冷、snowflake``
+- ☃️ ``bm:雪人、冬天、snowman``
+- ⛄ ``bm:无雪雪人、雪人、冬天、snowman``
+- 🌬️ ``bm:风脸、风、吹风、wind``
+- 💨 ``bm:快速烟尘、快、风、跑路、dash``
+- 🌪️ ``bm:龙卷风、混乱、tornado``
+- 🌫️ ``bm:雾、模糊、不清楚、fog``
+- 🌈 ``bm:彩虹、希望、多彩、rainbow``
+- ☔ ``bm:雨伞、下雨、防护、umbrella``
+- 💧 ``bm:水滴、液体、drop``
+- 🌊 ``bm:波浪、海浪、流动、wave、波动、浪``
+- 🫧 ``bm:泡泡、气泡、bubbles``
+- 🌍 ``bm:地球欧洲非洲、地球、世界、全球、earth``
+- 🌎 ``bm:地球美洲、地球、世界、美洲、earth``
+- 🌏 ``bm:地球亚洲澳洲、地球、亚洲、世界、earth``
+- 🌐 ``bm:经纬地球、网络、全球、地球、web``
+- 🪐 ``bm:行星、宇宙、planet``
+- 🌙 ``bm:月亮、晚上、夜晚、moon``
+- 🌌 ``bm:银河、宇宙、milky way``
+- ☄️ ``bm:彗星、冲击、comet``
+- 🌱 ``bm:发芽、新生、成长、种子、sprout、幼苗、开始、seedling``
+- 🌿 ``bm:草药、植物、草、自然、herb``
+- ☘️ ``bm:三叶草、幸运、clover``
+- 🍀 ``bm:四叶草、好运、lucky``
+- 🌵 ``bm:仙人掌、耐旱、cactus``
+- 🌲 ``bm:树、森林、松树、tree、常青树、evergreen``
+- 🌳 ``bm:落叶树、树、自然、tree``
+- 🌴 ``bm:棕榈树、棕榈、热带、palm``
+- 🪵 ``bm:木头、原木、wood``
+- 🌾 ``bm:稻穗、收获、grain``
+- 💐 ``bm:花束、祝福、flowers``
+- 🌷 ``bm:郁金香、花、tulip``
+- 🌹 ``bm:玫瑰、花、rose``
+- 🥀 ``bm:枯萎花、枯萎、衰败、wilted``
+- 🌺 ``bm:芙蓉、花、热带、hibiscus``
+- 🌸 ``bm:花、樱花、美好、spring、春天、sakura``
+- 🌼 ``bm:开花、花、blossom``
+- 🌻 ``bm:向日葵、阳光、sunflower``
+- 🐶 ``bm:狗、狗狗、忠诚、dog、狗脸、宠物``
+- 🐱 ``bm:猫、猫猫、cat、猫脸、宠物``
+- 🐭 ``bm:老鼠、鼠、mouse``
+- 🐹 ``bm:仓鼠、hamster``
+- 🐰 ``bm:兔子、rabbit``
+- 🦊 ``bm:狐狸、fox``
+- 🐻 ``bm:熊、bear``
+- 🐼 ``bm:熊猫、panda``
+- 🐻‍❄️ ``bm:北极熊、polar bear``
+- 🐨 ``bm:考拉、koala``
+- 🐯 ``bm:老虎、tiger``
+- 🦁 ``bm:狮子、lion``
+- 🐮 ``bm:牛脸、牛、奶牛、cow``
+- 🐷 ``bm:猪脸、猪、pig``
+- 🐸 ``bm:青蛙、frog``
+- 🐵 ``bm:猴子脸、猴子、monkey``
+- 🙈 ``bm:非礼勿视猴、不看、捂眼、monkey see``
+- 🙉 ``bm:非礼勿听猴、不听、捂耳、monkey hear``
+- 🙊 ``bm:非礼勿言猴、不说、捂嘴、monkey speak``
+- 🐔 ``bm:鸡、公鸡、chicken``
+- 🐧 ``bm:企鹅、penguin``
+- 🐦 ``bm:鸟、bird``
+- 🐤 ``bm:小鸡、chick``
+- 🦆 ``bm:鸭子、duck``
+- 🦅 ``bm:鹰、eagle``
+- 🦉 ``bm:猫头鹰、owl``
+- 🦇 ``bm:蝙蝠、bat``
+- 🐺 ``bm:狼、wolf``
+- 🐗 ``bm:野猪、boar``
+- 🐴 ``bm:马、horse``
+- 🦄 ``bm:独角兽、unicorn``
+- 🐝 ``bm:蜜蜂、bee``
+- 🪲 ``bm:甲虫、bug``
+- 🐛 ``bm:虫子、bug``
+- 🦋 ``bm:蝴蝶、butterfly``
+- 🐌 ``bm:蜗牛、snail``
+- 🐞 ``bm:瓢虫、ladybug``
+- 🐜 ``bm:蚂蚁、ant``
+- 🪰 ``bm:苍蝇、fly``
+- 🪱 ``bm:蠕虫、虫、worm``
+- 🦟 ``bm:蚊子、mosquito``
+- 🦗 ``bm:蟋蟀、cricket``
+- 🕷️ ``bm:蜘蛛、spider``
+- 🕸️ ``bm:蛛网、网络、web``
+- 🦂 ``bm:蝎子、scorpion``
+- 🐢 ``bm:乌龟、慢、turtle``
+- 🐍 ``bm:蛇、snake``
+- 🦎 ``bm:蜥蜴、lizard``
+- 🦖 ``bm:霸王龙、恐龙、trex``
+- 🦕 ``bm:恐龙、dinosaur``
+- 🐙 ``bm:章鱼、octopus``
+- 🦑 ``bm:鱿鱼、squid``
+- 🦐 ``bm:虾、shrimp``
+- 🦞 ``bm:龙虾、lobster``
+- 🦀 ``bm:螃蟹、crab``
+- 🐡 ``bm:河豚、blowfish``
+- 🐠 ``bm:热带鱼、鱼、fish``
+- 🐟 ``bm:鱼、fish``
+- 🐬 ``bm:海豚、dolphin``
+- 🐳 ``bm:喷水鲸、鲸鱼、whale``
+- 🐋 ``bm:鲸、鲸鱼、whale``
+- 🦈 ``bm:鲨鱼、shark``
+- 🦭 ``bm:海豹、seal``
+- 🍏 ``bm:青苹果、苹果、apple``
+- 🍎 ``bm:苹果、水果、apple、红苹果``
+- 🍐 ``bm:梨、pear``
+- 🍊 ``bm:橘子、橙子、orange``
+- 🍋 ``bm:柠檬、lemon``
+- 🍌 ``bm:香蕉、banana``
+- 🍉 ``bm:西瓜、watermelon``
+- 🍇 ``bm:葡萄、grapes``
+- 🍓 ``bm:草莓、strawberry``
+- 🫐 ``bm:蓝莓、blueberry``
+- 🍈 ``bm:甜瓜、melon``
+- 🍒 ``bm:樱桃、cherry``
+- 🍑 ``bm:桃子、peach``
+- 🥭 ``bm:芒果、mango``
+- 🍍 ``bm:菠萝、pineapple``
+- 🥥 ``bm:椰子、coconut``
+- 🥝 ``bm:猕猴桃、kiwi``
+- 🍅 ``bm:番茄、西红柿、tomato``
+- 🍆 ``bm:茄子、eggplant``
+- 🥑 ``bm:牛油果、avocado``
+- 🥦 ``bm:西兰花、broccoli``
+- 🥬 ``bm:绿叶菜、菜、leafy green``
+- 🥒 ``bm:黄瓜、cucumber``
+- 🌶️ ``bm:辣椒、hot pepper``
+- 🫑 ``bm:甜椒、彩椒、pepper``
+- 🌽 ``bm:玉米、corn``
+- 🥕 ``bm:胡萝卜、carrot``
+- 🫒 ``bm:橄榄、olive``
+- 🧄 ``bm:大蒜、garlic``
+- 🧅 ``bm:洋葱、onion``
+- 🥔 ``bm:土豆、马铃薯、potato``
+- 🍠 ``bm:红薯、sweet potato``
+- 🥐 ``bm:羊角面包、羊角包、croissant``
+- 🥯 ``bm:贝果、bagel``
+- 🍞 ``bm:面包、bread``
+- 🥖 ``bm:法棍、baguette``
+- 🥨 ``bm:椒盐卷饼、pretzel``
+- 🧀 ``bm:奶酪、芝士、cheese``
+- 🥚 ``bm:鸡蛋、egg``
+- 🍳 ``bm:煎蛋、做饭、cooking``
+- 🧈 ``bm:黄油、butter``
+- 🥞 ``bm:煎饼、pancake``
+- 🧇 ``bm:华夫饼、waffle``
+- 🥓 ``bm:培根、bacon``
+- 🥩 ``bm:肉排、肉、牛排、steak``
+- 🍗 ``bm:鸡腿、肉、drumstick``
+- 🍖 ``bm:带骨肉、肉、骨头、meat``
+- 🌭 ``bm:热狗、hotdog``
+- 🍔 ``bm:汉堡、burger``
+- 🍟 ``bm:薯条、fries``
+- 🍕 ``bm:披萨、pizza``
+- 🥪 ``bm:三明治、sandwich``
+- 🌮 ``bm:墨西哥卷、塔可、taco``
+- 🌯 ``bm:卷饼、burrito``
+- 🥙 ``bm:夹馍、夹饼、pita``
+- 🧆 ``bm:炸丸子、丸子、falafel``
+- 🥗 ``bm:沙拉、salad``
+- 🥘 ``bm:浅锅食物、炖菜、锅、paella``
+- 🫕 ``bm:奶酪锅、火锅、fondue``
+- 🍝 ``bm:意面、spaghetti``
+- 🍜 ``bm:面条、拉面、noodle``
+- 🍲 ``bm:锅、火锅、炖、pot``
+- 🍛 ``bm:咖喱饭、咖喱、饭、curry``
+- 🍣 ``bm:寿司、sushi``
+- 🍱 ``bm:便当、bento``
+- 🥟 ``bm:饺子、dumpling``
+- 🦪 ``bm:牡蛎、oyster``
+- 🍤 ``bm:炸虾、shrimp``
+- 🍙 ``bm:饭团、onigiri``
+- 🍚 ``bm:米饭、rice``
+- 🍘 ``bm:米饼、cracker``
+- 🍥 ``bm:鱼板、naruto``
+- 🥠 ``bm:幸运饼干、幸运饼、cookie``
+- 🥮 ``bm:月饼、mooncake``
+- 🍢 ``bm:关东煮、串、oden``
+- 🍡 ``bm:团子、dango``
+- 🍧 ``bm:刨冰、ice``
+- 🍨 ``bm:冰淇淋、ice cream``
+- 🍦 ``bm:甜筒、icecream``
+- 🥧 ``bm:派、pie``
+- 🧁 ``bm:纸杯蛋糕、cupcake``
+- 🍰 ``bm:蛋糕、甜点、cake``
+- 🎂 ``bm:生日蛋糕、生日、蛋糕、birthday``
+- 🍮 ``bm:布丁、custard``
+- 🍭 ``bm:棒棒糖、lollipop``
+- 🍬 ``bm:糖果、candy``
+- 🍫 ``bm:巧克力、chocolate``
+- 🍿 ``bm:爆米花、popcorn``
+- 🍩 ``bm:甜甜圈、donut``
+- 🍪 ``bm:饼干、cookie``
+- 🌰 ``bm:栗子、chestnut``
+- 🥜 ``bm:花生、peanut``
+- 🍯 ``bm:蜂蜜、honey``
+- 🥛 ``bm:牛奶、milk``
+- 🍼 ``bm:奶瓶、baby bottle``
+- ☕ ``bm:咖啡、喝咖啡、提神、coffee``
+- 🫖 ``bm:茶壶、泡茶、teapot``
+- 🍵 ``bm:茶、喝茶、tea、绿茶``
+- 🧃 ``bm:盒装饮料、饮料、果汁、juice``
+- 🥤 ``bm:吸管杯、饮料、奶茶、cup``
+- 🧋 ``bm:珍珠奶茶、奶茶、珍珠、bubble tea``
+- 🧉 ``bm:马黛茶、mate``
+- 🧊 ``bm:冰块、ice``
+- 🥢 ``bm:筷子、chopsticks``
+- 🍽️ ``bm:餐具、吃饭、plate``
+- 🍴 ``bm:刀叉、餐具、fork knife``
+- 🥄 ``bm:勺子、spoon``
+- 🔪 ``bm:菜刀、刀、knife``
+- 🫙 ``bm:罐子、jar``
+- 🚗 ``bm:汽车、开车、车、car、自驾``
+- 🚕 ``bm:出租车、打车、taxi``
+- 🚙 ``bm:SUV汽车、SUV、汽车、car``
+- 🚌 ``bm:公交车、公交、巴士、bus``
+- 🚎 ``bm:无轨电车、电车、公交、trolleybus``
+- 🏎️ ``bm:赛车、速度、race car``
+- 🚓 ``bm:警车、police car``
+- 🚑 ``bm:救护车、急救、ambulance``
+- 🚒 ``bm:消防车、fire truck``
+- 🚐 ``bm:小巴、van``
+- 🛻 ``bm:皮卡、pickup``
+- 🚚 ``bm:货车、物流、truck``
+- 🚛 ``bm:拖挂车、卡车、物流、lorry``
+- 🚜 ``bm:拖拉机、tractor``
+- 🦯 ``bm:盲杖、辅助、cane``
+- 🦽 ``bm:手动轮椅、轮椅、辅助、wheelchair``
+- 🦼 ``bm:电动轮椅、辅助``
+- 🛴 ``bm:滑板车、scooter``
+- 🚲 ``bm:自行车、bike``
+- 🛵 ``bm:小摩托、摩托、scooter``
+- 🏍️ ``bm:摩托车、motorcycle``
+- 🛺 ``bm:三轮车、三轮、rickshaw``
+- 🚔 ``bm:迎面警车、警车、police``
+- 🚍 ``bm:迎面公交、公交、bus``
+- 🚘 ``bm:迎面汽车、汽车、car``
+- 🚖 ``bm:迎面出租车、出租车、taxi``
+- 🚡 ``bm:缆车、cable car``
+- 🚠 ``bm:山地缆车、缆车、mountain``
+- 🚟 ``bm:悬挂铁路、railway``
+- 🚃 ``bm:轨道车、电车、railcar``
+- 🚋 ``bm:有轨电车、电车、tram``
+- 🚞 ``bm:山区铁路、铁路、山、railway``
+- 🚝 ``bm:单轨、monorail``
+- 🚄 ``bm:高铁、动车、train``
+- 🚅 ``bm:子弹头列车、高铁、快速列车、bullet train``
+- 🚈 ``bm:轻轨、rail``
+- 🚂 ``bm:蒸汽火车、火车、蒸汽、train``
+- 🚆 ``bm:火车、train``
+- 🚇 ``bm:地铁、通勤、metro``
+- 🚊 ``bm:有轨电车、电车、tram``
+- 🚉 ``bm:车站、station``
+- ✈️ ``bm:飞机、飞行、旅行、出差、plane``
+- 🛫 ``bm:飞机起飞、起飞、飞机、departure``
+- 🛬 ``bm:飞机降落、降落、飞机、arrival``
+- 🛩️ ``bm:小飞机、plane``
+- 💺 ``bm:座位、seat``
+- 🚁 ``bm:直升机、helicopter``
+- 🛸 ``bm:飞碟、UFO``
+- 🛶 ``bm:独木舟、canoe``
+- ⛵ ``bm:帆船、boat``
+- 🚤 ``bm:快艇、speedboat``
+- 🛥️ ``bm:摩托艇、游艇、motor boat``
+- 🛳️ ``bm:客轮、ship``
+- ⛴️ ``bm:渡轮、ferry``
+- 🚢 ``bm:船、ship``
+- ⚓ ``bm:锚、停靠、anchor``
+- 🛟 ``bm:救生圈、安全、lifebuoy``
+- ⛽ ``bm:加油站、油、gas``
+- 🚧 ``bm:施工、路障、construction``
+- 🚦 ``bm:竖红绿灯、红绿灯、交通灯、traffic light``
+- 🚥 ``bm:横红绿灯、红绿灯、traffic``
+- 🚏 ``bm:公交站、bus stop``
+- 🗺️ ``bm:地图、路线、map``
+- 🗽 ``bm:自由女神、纽约、statue``
+- 🗼 ``bm:东京塔、tower``
+- 🏰 ``bm:城堡、castle``
+- 🏯 ``bm:日本城堡、城堡、日本、castle``
+- 🏟️ ``bm:体育场、stadium``
+- 🎡 ``bm:摩天轮、fair``
+- 🎢 ``bm:过山车、roller coaster``
+- 🎠 ``bm:旋转木马、carousel``
+- ⛲ ``bm:喷泉、fountain``
+- ⛱️ ``bm:遮阳伞、海滩伞、beach``
+- 🏖️ ``bm:海滩、度假、beach``
+- 🏝️ ``bm:荒岛、岛、海岛、island``
+- 🏜️ ``bm:沙漠、desert``
+- 🌋 ``bm:火山、volcano``
+- ⛰️ ``bm:山、mountain``
+- 🏔️ ``bm:雪山、mountain``
+- 🗻 ``bm:富士山、mount fuji``
+- 🏕️ ``bm:露营、camping``
+- ⛺ ``bm:帐篷、露营、tent``
+- 🏠 ``bm:家、房子、主页、home``
+- 🏡 ``bm:带花园房子、家、房子、home``
+- 🏢 ``bm:公司、办公楼、企业、office``
+- 🏣 ``bm:日本邮局、邮局、post office``
+- 🏤 ``bm:邮局、post office``
+- 🏥 ``bm:医院、hospital``
+- 🏦 ``bm:银行、bank``
+- 🏨 ``bm:酒店、hotel``
+- 🏪 ``bm:便利店、store``
+- 🏬 ``bm:百货商场、商场、百货、mall``
+- 🏭 ``bm:工厂、factory``
+- 🏗️ ``bm:建筑施工、建筑、施工、construction``
+- ⚽ ``bm:足球、运动、soccer``
+- 🏀 ``bm:篮球、运动、basketball``
+- 🏈 ``bm:美式足球、橄榄球、football``
+- ⚾ ``bm:棒球、baseball``
+- 🥎 ``bm:垒球、softball``
+- 🎾 ``bm:网球、tennis``
+- 🏐 ``bm:排球、volleyball``
+- 🏉 ``bm:英式橄榄球、橄榄球、rugby``
+- 🥏 ``bm:飞盘、frisbee``
+- 🎱 ``bm:台球、billiards``
+- 🪀 ``bm:悠悠球、yoyo``
+- 🏓 ``bm:乒乓球、乒乓、pingpong``
+- 🏸 ``bm:羽毛球、badminton``
+- 🏒 ``bm:冰球、hockey``
+- 🏑 ``bm:曲棍球、hockey``
+- 🥍 ``bm:长曲棍球、lacrosse``
+- 🏏 ``bm:板球、cricket``
+- 🪃 ``bm:回旋镖、boomerang``
+- 🥅 ``bm:球门、goal``
+- ⛳ ``bm:高尔夫洞、高尔夫、golf``
+- 🪁 ``bm:风筝、kite``
+- 🏹 ``bm:弓箭、目标、archery``
+- 🎣 ``bm:钓鱼、fish``
+- 🤿 ``bm:潜水面罩、潜水、diving``
+- 🥊 ``bm:拳击手套、拳击、boxing``
+- 🥋 ``bm:武术服、武术、柔道、karate``
+- 🎽 ``bm:跑步背心、跑步、运动、running``
+- 🛹 ``bm:滑板、skateboard``
+- 🛼 ``bm:轮滑鞋、轮滑、skate``
+- 🛷 ``bm:雪橇、sled``
+- ⛸️ ``bm:溜冰鞋、溜冰、skate``
+- 🥌 ``bm:冰壶、curling``
+- 🎿 ``bm:滑雪、ski``
+- ⛷️ ``bm:滑雪者、滑雪、ski``
+- 🏂 ``bm:单板滑雪、滑雪、snowboard``
+- 🪂 ``bm:降落伞、parachute``
+- 🏋️ ``bm:举重、力量、weightlifting``
+- 🤼 ``bm:摔跤、wrestling``
+- 🤸 ``bm:翻跟头、体操、翻滚、gymnastics``
+- ⛹️ ``bm:篮球运动、篮球、运动、basketball``
+- 🤺 ``bm:击剑、fencing``
+- 🤾 ``bm:手球、handball``
+- 🏌️ ``bm:高尔夫、golf``
+- 🏇 ``bm:赛马、horse racing``
+- 🧗 ``bm:攀岩、climb``
+- 🏄 ``bm:冲浪、surf``
+- 🏊 ``bm:游泳、swim``
+- 🤽 ``bm:水球、water polo``
+- 🚣 ``bm:划船、row``
+- 🧜 ``bm:美人鱼、mermaid``
+- 🎮 ``bm:游戏、game、游戏手柄、手柄``
+- 🕹️ ``bm:摇杆、游戏、街机、joystick``
+- 🎲 ``bm:骰子、随机、dice``
+- ♟️ ``bm:国际象棋兵、棋、国际象棋、chess``
+- 🎭 ``bm:戏剧面具、戏剧、表演、mask``
+- 🖼️ ``bm:画框、图片、画、image``
+- 🎨 ``bm:调色板、艺术、绘画、palette``
+- 🧵 ``bm:线、缝纫、thread``
+- 🪡 ``bm:针、缝纫、needle``
+- 🧶 ``bm:毛线、yarn``
+- 🎼 ``bm:乐谱、音乐、score``
+- 🎤 ``bm:麦克风、唱歌、mic``
+- 🎧 ``bm:耳机、听、headphone、听歌``
+- 🎷 ``bm:萨克斯、音乐、sax``
+- 🪗 ``bm:手风琴、accordion``
+- 🎸 ``bm:吉他、guitar``
+- 🎹 ``bm:键盘乐器、钢琴、键盘、piano``
+- 🎺 ``bm:小号、trumpet``
+- 🎻 ``bm:小提琴、violin``
+- 🥁 ``bm:鼓、drum``
+- 🪘 ``bm:长鼓、鼓、drum``
+- 🎬 ``bm:场记板、电影、视频、拍摄、movie``
+- 🎪 ``bm:马戏团、circus``
+- 🎟️ ``bm:票券、票、门票、ticket``
+- 🎫 ``bm:门票、ticket``
+- 🏆 ``bm:奖杯、冠军、成就、winner、trophy``
+- 🥇 ``bm:金牌、第一、gold``
+- 🥈 ``bm:银牌、第二、silver``
+- 🥉 ``bm:铜牌、第三、bronze``
+- 🏅 ``bm:奖牌、medal``
+- 🎖️ ``bm:军功章、奖章、勋章、medal``
+- 🏵️ ``bm:花形奖章、奖章、花、rosette``
+- 🎗️ ``bm:纪念丝带、丝带、纪念、ribbon``
+- 🎉 ``bm:庆祝、撒花、完成庆祝、party、庆祝礼花、礼花、恭喜``
+- 🎊 ``bm:彩纸庆祝、庆祝、彩纸、party``
+- 🎈 ``bm:气球、生日、balloon``
+- 🎁 ``bm:礼物、赠品、gift、送礼``
+- 🎀 ``bm:蝴蝶结、装饰、bow``
+- 🪅 ``bm:皮纳塔、庆祝、彩罐、pinata``
+- 🪩 ``bm:迪斯科球、派对、闪耀、disco``
+- 🧧 ``bm:红包、春节、red envelope``
+- 🎆 ``bm:烟花、庆祝、fireworks``
+- 🎇 ``bm:仙女棒、烟花、sparkler``
+- 🎃 ``bm:南瓜灯、万圣节、南瓜、halloween``
+- 🎄 ``bm:圣诞树、圣诞、christmas``
+- 🎋 ``bm:七夕树、七夕、愿望、tanabata``
+- 🎍 ``bm:门松、新年、日本、kadomatsu``
+- 🎎 ``bm:女儿节娃娃、娃娃、节日、dolls``
+- 🎏 ``bm:鲤鱼旗、儿童节、koinobori``
+- 🎐 ``bm:风铃、夏天、wind chime``
+- 🎑 ``bm:赏月、中秋、moon viewing``
+- 🪬 ``bm:法蒂玛之手、保护、护身符、hamsa``
+- 🪔 ``bm:油灯、diya``
+- 🛎️ ``bm:服务铃、铃、提醒、bell``
+- 🧸 ``bm:泰迪熊、玩具熊、可爱、teddy``
+- 🪆 ``bm:套娃、matryoshka``
+- 🃏 ``bm:鬼牌、扑克牌、小丑牌、joker``
+- 🀄 ``bm:麻将红中、麻将、红中、mahjong``
+- 🎴 ``bm:花札、纸牌、card``
+- 🛑 ``bm:止损停止、止损、停止、风险控制、stop loss、sl``
+- 💰 ``bm:钱、资金、收益、利润、money、利润收益、赚钱、盈利、profit``
+- 💸 ``bm:亏损流失、亏损、损失、成本、loss``
+- 💎 ``bm:高质量机会、高质量、钻石、好机会、优质、A+``
+- 🪤 ``bm:陷阱、假突破、诱多、诱空、trap``
+- 🐇 ``bm:快行情、快、急、兔子、fast``
+- 🏁 ``bm:收盘结果、结果、终点、收盘、finish``
+- 🪞 ``bm:自我观察、自省、反思、镜子、reflection``
+- 🕳️ ``bm:坑洞盲区、坑、盲区、陷坑、hole``
+- ▶️ ``bm:播放开始、播放、开始、启动、start、play``
+- ⏸️ ``bm:暂停、pause``
+- ⏹️ ``bm:停止、stop``
+- ⏺️ ``bm:录制、记录、record``
+- ⏭️ ``bm:下一首、下一步、跳过、next``
+- ⏮️ ``bm:上一首、上一步、返回、previous``
+- ⏩ ``bm:快进、加速、fast forward``
+- ⏪ ``bm:快退、回退、rewind``
+- 🔀 ``bm:随机、打乱、shuffle``
+- 🔃 ``bm:顺时针刷新、刷新、循环、clockwise``
+- 🔙 ``bm:返回、back``
+- 🔚 ``bm:结束、end``
+- 🔛 ``bm:开启、on``
+- 🔜 ``bm:即将、soon``
+- 🔝 ``bm:顶部、top``
+- 🆗 ``bm:OK按钮、OK、可以、确认、ok``
+- 🆕 ``bm:新、新增、new``
+- 🆙 ``bm:升级、上升、up``
+- 🆒 ``bm:酷、cool``
+- 🆓 ``bm:免费、free``
+- 🆔 ``bm:ID、身份、编号``
+- 🆘 ``bm:求救、救命、sos``
+- 🆚 ``bm:对比、VS、versus``
+- 🈁 ``bm:这里、此处、here``
+- 🈯 ``bm:指、指示、指定、reserved``
+- 🈲 ``bm:禁止、禁用、forbidden``
+- 🈳 ``bm:空、空闲、vacancy``
+- 🈴 ``bm:合格、通过、pass``
+- 🈵 ``bm:满、满员、full``
+- 🈶 ``bm:有、存在、available``
+- 🈚 ``bm:无、没有、none``
+- 🈸 ``bm:申请、申报、apply``
+- 🈺 ``bm:营业、开放、open``
+- 🈷️ ``bm:月、月度、month``
+- ✴️ ``bm:八角星、星、特殊、eight star``
+- 🆎 ``bm:AB型、AB、血型、ab``
+- 🅰️ ``bm:A型、A、血型、a``
+- 🅱️ ``bm:B型、B、血型、b``
+- 🅾️ ``bm:O型、O、血型、o``
+- 🅿️ ``bm:停车、P、parking``
+- 🚾 ``bm:厕所、WC、restroom``
+- ♿ ``bm:无障碍、轮椅、accessible``
+- 🚹 ``bm:男厕、男、厕所、men``
+- 🚺 ``bm:女厕、女、厕所、women``
+- 🚼 ``bm:婴儿、baby``
+- 🚻 ``bm:洗手间、厕所、restroom``
+- 🚮 ``bm:垃圾桶、垃圾、扔垃圾、litter``
+- 🎦 ``bm:电影院、电影、影院、cinema``
+- 📶 ``bm:信号、wifi、signal``
+- 🛜 ``bm:无线网络、无线、wifi、network``
+- 🈂️ ``bm:服务费、服务、service``
+- ℹ️ ``bm:信息、说明、info``
+- 🔣 ``bm:符号输入、符号、输入、symbols``
+- 🔤 ``bm:字母输入、字母、abc``
+- 🔡 ``bm:小写字母、小写、abc``
+- 🔠 ``bm:大写字母、大写、ABC``
+- 🔢 ``bm:数字输入、数字、123``
+- #️⃣ ``bm:井号键、井号、hashtag``
+- *️⃣ ``bm:星号键、星号、asterisk``
+- 0️⃣ ``bm:数字0、0、零、zero``
+- 1️⃣ ``bm:数字1、1、一、one``
+- 2️⃣ ``bm:数字2、2、二、two``
+- 3️⃣ ``bm:数字3、3、三、three``
+- 4️⃣ ``bm:数字4、4、四、four``
+- 5️⃣ ``bm:数字5、5、五、five``
+- 6️⃣ ``bm:数字6、6、六、six``
+- 7️⃣ ``bm:数字7、7、七、seven``
+- 8️⃣ ``bm:数字8、8、八、eight``
+- 9️⃣ ``bm:数字9、9、九、nine``
+- 🔟 ``bm:数字10、10、十、ten``
+- 🏳️ ``bm:白旗、投降、flag white``
+- 🏴 ``bm:黑旗、flag black``
+- 🚩 ``bm:三角旗、红旗、标记、flag``
+- 🏳️‍🌈 ``bm:彩虹旗、多元、rainbow flag``
+- 🏴‍☠️ ``bm:海盗旗、海盗、pirate``
+- 🇨🇳 ``bm:中国国旗、中国、五星红旗、国旗、中国旗、china、cn、flag china、china flag``
+- 🇺🇸 ``bm:美国国旗、美国、星条旗、国旗、美国旗、usa、us、america、flag usa、us flag``
+- 🇯🇵 ``bm:日本国旗、日本、日章旗、国旗、日本旗、japan、jp、flag japan、japan flag``
+- 🇰🇷 ``bm:韩国国旗、韩国、太极旗、国旗、韩国旗、korea、kr、south korea、flag korea``
+- 🇬🇧 ``bm:英国国旗、英国、米字旗、联合王国、国旗、英国旗、uk、gb、britain、union jack``
+- 🇫🇷 ``bm:法国国旗、法国、三色旗、国旗、法国旗、france、fr、flag france``
+- 🇩🇪 ``bm:德国国旗、德国、黑红金、国旗、德国旗、germany、de、flag germany``
+- 🇮🇹 ``bm:意大利国旗、意大利、三色旗、国旗、意大利旗、italy、it、flag italy``
+- 🇪🇸 ``bm:西班牙国旗、西班牙、国旗、西班牙旗、spain、es、flag spain``
+- 🇨🇦 ``bm:加拿大国旗、加拿大、枫叶旗、国旗、加拿大旗、canada、ca、flag canada``
+- 🇦🇺 ``bm:澳大利亚国旗、澳大利亚、澳洲、国旗、澳大利亚旗、australia、au、flag australia``
+- 🇸🇬 ``bm:新加坡国旗、新加坡、国旗、新加坡旗、singapore、sg、flag singapore``
+- 🇭🇰 ``bm:香港区旗、香港、香港旗、区旗、hong kong、hk、flag hong kong``
+- 🇹🇼 ``bm:台湾旗、台湾、台湾旗帜、旗、taiwan、tw、flag taiwan``
