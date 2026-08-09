@@ -503,16 +503,16 @@ def get_disclaimer_html_text():
     """返回包含重要声明与协议的HTML格式文本"""
     return """
     <h2>⚠️ 重要声明与许可协议 (IMPORTANT DISCLAIMER & LICENSE)</h2>
-    <p><strong>在下载、安装或以任何方式使用本软件 (QuickKV) 与代码前，请您务必仔细阅读并充分理解以下所有条款。本软件是基于 MIT 许可证 (MIT License) 发布的免费开源项目。一旦您开始使用本软件的任何部分（包括但不限于运行程序、查阅代码、修改或分发），即表示您已完全阅读、理解并无条件接受本声明及 MIT 许可证的全部内容。如果您不同意其中任何条款，请立即停止使用并彻底删除本软件的所有相关文件。</strong></p>
+    <p><strong>QuickKV 是基于 MIT 许可证发布的本地开源工具。开始使用前，请重点了解下面列出的按键监听、剪贴板保存和本地数据边界；如果您不接受这些行为，请不要启用相应功能或停止使用本软件。</strong></p>
     
     <h3>1. “按原样”提供，不作任何保证 (AS-IS, WITHOUT ANY WARRANTY)</h3>
     <p>本软件按“原样”(AS IS) 提供，不附带任何形式的明示或暗示的保证，包括但不限于对软件的<strong>商业适用性 (MERCHANTABILITY)</strong>、<strong>特定用途适用性 (FITNESS FOR A PARTICULAR PURPOSE)</strong> 和 <strong>非侵权性 (NON-INFRINGEMENT)</strong> 的保证。作者不保证软件能满足您的所有需求，不保证软件运行不会中断或不出现任何错误，也不保证软件中的任何缺陷 (Bug) 都将被修正。所有条款以软件附带的 <a href="https://github.com/EllisMorrow/QuickKV/blob/main/LICENSE">MIT 许可证</a> 原文为准。</p>
     
     <h3>2. 核心功能与潜在风险告知 (CORE FUNCTIONALITY & POTENTIAL RISKS)</h3>
-    <p>本软件的核心功能必然涉及<strong>全局键盘监听</strong> (用于实现快捷码、快捷键功能) 和<strong>剪贴板内容读写</strong> (用于粘贴及历史记忆功能)。您必须清楚地认识到这些功能存在的潜在风险：</p>
+    <p>默认 <strong>Ctrl+Space</strong> 通过 Windows 原生全局热键注册，仅响应设定的组合键；<strong>快捷码</strong>与<strong>连续字符串盲打触发</strong>属于可选功能，只有在您主动启用后才会在后台接收全局按键事件。软件会使用系统剪贴板完成词条复制与粘贴。</p>
     <ul>
-        <li><strong>键盘监听风险</strong>: 为了实现快捷码功能，程序会在后台监听您的键盘输入。尽管程序的设计初衷仅为匹配您设定的触发码，但该机制在技术原理上可以访问到您的全局键盘输入。</li>
-        <li><strong>剪贴板隐私风险</strong>: 当“剪贴板记忆”功能开启时，程序会读取并以明文形式记录您复制到系统剪贴板的文本内容。这意味着，<strong>如果您复制了密码、银行卡号、身份证、私密对话等任何敏感信息，这些信息也可能被程序记录下来。</strong></li>
+        <li><strong>按键监听边界</strong>: 启用快捷码或连续字符串触发后，程序需要接收全局按键事件以识别触发内容。请仅在您理解并接受该行为时启用。</li>
+        <li><strong>剪贴板隐私风险</strong>: 剪贴板历史默认关闭。开启后，复制的文本会以<strong>明文</strong>保存到本机的 <code>MD词库-需自动载入的请放入/剪贴板词库-勿删.md</code>；密码、验证码、银行卡号、身份证或私密对话等敏感文本可能因此被保留。</li>
         <li><strong>安全软件警告</strong>: 由于上述功能的敏感性，部分安全软件、杀毒软件或系统防护工具可能会将本软件标记为“键盘记录器”、“风险软件”或“恶意程序”。这属于正常现象，请您基于对本项目开源代码的信任自行判断并选择是否“信任”或“允许运行”。</li>
     </ul>
 
@@ -520,7 +520,7 @@ def get_disclaimer_html_text():
     <p>您明确理解并同意，使用本软件所引发的一切后果和风险，包括但不限于<strong>数据丢失或损坏、利润损失、业务中断、个人信息泄露、与其他软件的冲突、系统不稳定或崩溃等</strong>，完全由您本人承担。在任何法律允许的最大范围内，本软件作者或任何贡献者在任何情况下均不对任何因使用、无法使用或滥用本软件而导致的任何直接、间接、偶然、特殊、惩戒性或后果性的损害负责，即使已被告知可能发生此类损害。</p>
 
     <h3>4. 用户数据与隐私保护 (USER DATA & PRIVACY)</h3>
-    <p>作者高度重视用户隐私。本软件为<strong>纯本地离线工具</strong>，您使用软件产生的所有数据，包括<strong>词库文件 (<code>.md</code>)、配置文件 (<code>config.ini</code>)、剪贴板历史记录等，均只会存储在您自己的电脑本地硬盘上</strong>。本软件不会以任何形式主动收集、存储或上传您的任何个人信息或使用数据到任何网络服务器。软件运行无需联网。</p>
+    <p>本软件为<strong>本地离线工具</strong>。词库、配置、剪贴板历史及声明确认记录均只存储在您的电脑本地；软件不会主动收集、上传或向服务器传输个人信息、词库内容、剪贴板内容或使用数据，运行无需联网。只有当您主动点击“帮助与更新”时，系统浏览器才会打开 GitHub 页面。声明确认只记录声明修订号，不读取或保存硬件设备标识。</p>
 
     <h3>5. 合法合规使用承诺 (LAWFUL & COMPLIANT USE)</h3>
     <p>您承诺将在遵守您所在国家或地区所有适用法律法规的前提下使用本软件。严禁将本软件用于任何非法目的，包括但不限于窃取商业秘密、侵犯他人隐私、发送垃圾信息等任何违法违规行为。任何因您的非法使用或违规操作而导致的法律责任和后果，均由您自行承担，与本软件作者无关。此外，如果您在组织或公司环境（如工作电脑）中使用本软件，您有责任确保此行为符合该组织的信息安全策略和规定。</p>
@@ -529,12 +529,12 @@ def get_disclaimer_html_text():
     <p>本软件是一个开源项目，所有源代码均在 GitHub 公开。我们鼓励并建议有能力的用户在安装使用前，<strong>自行审查代码</strong>，以确保其安全性和功能符合您的预期。作者保证其发布的官方版本不包含任何已知的恶意代码，但无法保证软件绝对没有缺陷。</p>
 
     <h3>7. 官方渠道与安全下载 (OFFICIAL CHANNEL & SECURE DOWNLOAD)</h3>
-    <p>本项目的唯一官方发布渠道为 GitHub Releases 页面 (<code>https://github.com/EllisMorrow/QuickKV/releases</code>)。作者不对任何从第三方网站、论坛、社群、个人分享等非官方渠道获取的软件副本的安全性、完整性或一致性作任何保证。为避免潜在的恶意代码注入或版本篡改风险，请务必通过官方渠道下载。</p>
+    <p>本项目的官方源码与程序发布渠道分别为 <a href="https://github.com/EllisMorrow/QuickKV">GitHub 仓库</a> 和 <a href="https://github.com/EllisMorrow/QuickKV/releases">GitHub Releases</a>。请仅从 Releases 下载正式发布的程序；作者不保证第三方分发副本的完整性或安全性。</p>
 
     <h3>8. 无专业支持义务 (NO OBLIGATION FOR SUPPORT)</h3>
     <p>本软件为免费提供，作者没有义务提供任何形式的商业级技术支持、更新、用户培训或后续服务。作者可能会通过 GitHub Issues 等社区渠道提供帮助，但这完全出于自愿且不作任何承诺，作者保留随时忽略或关闭任何问题的权利。</p>
     
-    <p><strong>再次强调：继续使用本软件，即表示您已确认阅读、理解并同意遵守上述所有条款以及 MIT 许可证的全部内容。</strong></p>
+    <p><strong>继续使用本软件，即表示您已阅读并接受上述说明以及软件附带的 MIT 许可证。</strong></p>
     """
 
 # --- 重要声明与协议对话框 ---
@@ -550,7 +550,11 @@ class DisclaimerDialog(QDialog):
         layout.setSpacing(10)
 
         # 1. 醒目提示
-        intro_label = QLabel("<b>欢迎使用 QuickKV！在开始前，请您务必阅读以下重要信息。本软件涉及键盘和剪贴板操作，了解其工作原理和潜在风险对您至关重要。</b>")
+        intro_label = QLabel(
+            "<b>欢迎使用 QuickKV！关键说明：</b><br>"
+            "默认 Ctrl+Space 只注册组合键；快捷码与连续字符串监听需主动开启；"
+            "剪贴板历史默认关闭，开启后会在本机明文保存；软件不会主动上传数据。"
+        )
         intro_label.setWordWrap(True)
         intro_label.setStyleSheet("font-size: 16px; color: #e5c07b;") # 使用醒目的颜色
         layout.addWidget(intro_label)
@@ -562,7 +566,7 @@ class DisclaimerDialog(QDialog):
         layout.addWidget(self.text_area, 1) # 占据主要空间
 
         # 3. 确认勾选框
-        self.agree_checkbox = QCheckBox("我已仔细阅读、完全理解并同意上述所有条款及 MIT 许可协议。我愿自行承担使用本软件的一切风险。")
+        self.agree_checkbox = QCheckBox("我已阅读上述关键说明及完整声明，并同意在了解本地数据和可选监听范围后使用 QuickKV。")
         self.agree_checkbox.toggled.connect(self.on_checkbox_toggled)
         layout.addWidget(self.agree_checkbox)
 

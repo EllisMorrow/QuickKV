@@ -128,7 +128,7 @@ class SettingsReliabilityTests(unittest.TestCase):
             self.assertTrue(settings.hotkeys_enabled)
             self.assertEqual([], settings.libraries)
             self.assertEqual([], settings.auto_libraries)
-            self.assertEqual({"id": "", "version": ""}, settings.accepted_disclaimer_info)
+            self.assertEqual({"revision": ""}, settings.accepted_disclaimer_info)
 
     def test_invalid_libraries_json_falls_back_without_losing_other_values(self):
         with tempfile.TemporaryDirectory() as temp_dir:

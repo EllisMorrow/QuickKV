@@ -48,10 +48,10 @@ from ui.components import DisclaimerDialog
 from core.single_instance import SingleInstanceManager
 
 
-def ensure_current_disclaimer_accepted(settings_manager, current_device_id, version, dialog_factory=DisclaimerDialog):
+def ensure_current_disclaimer_accepted(settings_manager, revision, dialog_factory=DisclaimerDialog):
     """Return only after the required acceptance is durably recorded."""
     accepted_info = settings_manager.accepted_disclaimer_info
-    if accepted_info.get('id') == current_device_id and accepted_info.get('version') == version:
+    if accepted_info.get('revision') == revision:
         return True
 
     disclaimer_dialog = dialog_factory(
@@ -63,12 +63,9 @@ def ensure_current_disclaimer_accepted(settings_manager, current_device_id, vers
         return False
 
     previous_info = dict(accepted_info)
-    settings_manager.accepted_disclaimer_info = {
-        'id': current_device_id,
-        'version': version,
-    }
+    settings_manager.accepted_disclaimer_info = {'revision': revision}
     if settings_manager.save():
-        log(f"用户已接受版本 {version} 的协议。")
+        log(f"用户已接受声明修订版 {revision}。")
         return True
 
     settings_manager.accepted_disclaimer_info = previous_info
@@ -90,6 +87,7 @@ if __name__ == "__main__":
     QApplication.setHighDpiScaleFactorRoundingPolicy(Qt.HighDpiScaleFactorRoundingPolicy.PassThrough)
     
     app = QApplication(sys.argv)
+    app.setWindowIcon(QIcon(ICON_PATH))
     app.setQuitOnLastWindowClosed(False)
 
     # Own the IPC endpoint before opening any files under the shared data root.
@@ -135,9 +133,8 @@ if __name__ == "__main__":
     )
     instance_manager.set_activation_handler(controller.activate_from_second_instance)
     
-    # --- 首次启动与版本更新检查 ---
-    current_device_id = get_device_id()
-    if not ensure_current_disclaimer_accepted(settings_manager, current_device_id, VERSION):
+    # --- 首次启动与声明实质更新检查 ---
+    if not ensure_current_disclaimer_accepted(settings_manager, DISCLAIMER_REVISION):
         cleanup_after_startup_failure(controller)
         sys.exit(0)
 

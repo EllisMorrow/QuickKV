@@ -157,7 +157,7 @@ class SettingsManager:
         self.clipboard_auto_clear_minutes = 10
         self.auto_restart_enabled = False
         self.auto_restart_interval = 3
-        self.accepted_disclaimer_info = {'id': '', 'version': ''}
+        self.accepted_disclaimer_info = {'revision': ''}
         self.libraries = []
         self.auto_libraries = []
 
