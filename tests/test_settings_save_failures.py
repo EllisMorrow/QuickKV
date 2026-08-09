@@ -300,18 +300,48 @@ class SettingsSaveFailureTests(unittest.TestCase):
 
     def test_protocol_acceptance_failure_is_not_treated_as_accepted(self):
         settings = types.SimpleNamespace(
-            accepted_disclaimer_info={"id": "old", "version": "old"},
+            accepted_disclaimer_info={"revision": "old"},
             theme="dark",
             font_size=14,
             save=lambda: False,
         )
         dialog = types.SimpleNamespace(exec=lambda: 1)
 
-        accepted = main.ensure_current_disclaimer_accepted(settings, "device", "version", lambda **kwargs: dialog)
+        accepted = main.ensure_current_disclaimer_accepted(settings, "2", lambda **kwargs: dialog)
 
         self.assertFalse(accepted)
-        self.assertEqual({"id": "old", "version": "old"}, settings.accepted_disclaimer_info)
+        self.assertEqual({"revision": "old"}, settings.accepted_disclaimer_info)
         self.assertEqual("critical", _MessageBox.messages[0][0])
+
+    def test_current_protocol_revision_skips_dialog_and_save(self):
+        settings = types.SimpleNamespace(
+            accepted_disclaimer_info={"revision": "2"},
+            theme="dark",
+            font_size=14,
+            save=lambda: self.fail("current acceptance must not be saved again"),
+        )
+
+        accepted = main.ensure_current_disclaimer_accepted(
+            settings,
+            "2",
+            lambda **kwargs: self.fail("current acceptance must not show the dialog"),
+        )
+
+        self.assertTrue(accepted)
+
+    def test_protocol_acceptance_migrates_old_record_to_revision_only(self):
+        settings = types.SimpleNamespace(
+            accepted_disclaimer_info={"id": "old-device", "version": "1.3.6"},
+            theme="dark",
+            font_size=14,
+            save=lambda: True,
+        )
+        dialog = types.SimpleNamespace(exec=lambda: 1)
+
+        accepted = main.ensure_current_disclaimer_accepted(settings, "2", lambda **kwargs: dialog)
+
+        self.assertTrue(accepted)
+        self.assertEqual({"revision": "2"}, settings.accepted_disclaimer_info)
 
     def test_startup_protocol_failure_uses_controller_cleanup(self):
         controller = _CleanupController()
