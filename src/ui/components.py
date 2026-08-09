@@ -506,7 +506,7 @@ def get_disclaimer_html_text():
     <p><strong>在下载、安装或以任何方式使用本软件 (QuickKV) 与代码前，请您务必仔细阅读并充分理解以下所有条款。本软件是基于 MIT 许可证 (MIT License) 发布的免费开源项目。一旦您开始使用本软件的任何部分（包括但不限于运行程序、查阅代码、修改或分发），即表示您已完全阅读、理解并无条件接受本声明及 MIT 许可证的全部内容。如果您不同意其中任何条款，请立即停止使用并彻底删除本软件的所有相关文件。</strong></p>
     
     <h3>1. “按原样”提供，不作任何保证 (AS-IS, WITHOUT ANY WARRANTY)</h3>
-    <p>本软件按“原样”(AS IS) 提供，不附带任何形式的明示或暗示的保证，包括但不限于对软件的<strong>商业适用性 (MERCHANTABILITY)</strong>、<strong>特定用途适用性 (FITNESS FOR A PARTICULAR PURPOSE)</strong> 和 <strong>非侵权性 (NON-INFRINGEMENT)</strong> 的保证。作者不保证软件能满足您的所有需求，不保证软件运行不会中断或不出现任何错误，也不保证软件中的任何缺陷 (Bug) 都将被修正。所有条款以软件附带的 <a href="https://github.com/msjsc001/QuickKV/blob/main/LICENSE">MIT 许可证</a> 原文为准。</p>
+    <p>本软件按“原样”(AS IS) 提供，不附带任何形式的明示或暗示的保证，包括但不限于对软件的<strong>商业适用性 (MERCHANTABILITY)</strong>、<strong>特定用途适用性 (FITNESS FOR A PARTICULAR PURPOSE)</strong> 和 <strong>非侵权性 (NON-INFRINGEMENT)</strong> 的保证。作者不保证软件能满足您的所有需求，不保证软件运行不会中断或不出现任何错误，也不保证软件中的任何缺陷 (Bug) 都将被修正。所有条款以软件附带的 <a href="https://github.com/EllisMorrow/QuickKV/blob/main/LICENSE">MIT 许可证</a> 原文为准。</p>
     
     <h3>2. 核心功能与潜在风险告知 (CORE FUNCTIONALITY & POTENTIAL RISKS)</h3>
     <p>本软件的核心功能必然涉及<strong>全局键盘监听</strong> (用于实现快捷码、快捷键功能) 和<strong>剪贴板内容读写</strong> (用于粘贴及历史记忆功能)。您必须清楚地认识到这些功能存在的潜在风险：</p>
@@ -529,7 +529,7 @@ def get_disclaimer_html_text():
     <p>本软件是一个开源项目，所有源代码均在 GitHub 公开。我们鼓励并建议有能力的用户在安装使用前，<strong>自行审查代码</strong>，以确保其安全性和功能符合您的预期。作者保证其发布的官方版本不包含任何已知的恶意代码，但无法保证软件绝对没有缺陷。</p>
 
     <h3>7. 官方渠道与安全下载 (OFFICIAL CHANNEL & SECURE DOWNLOAD)</h3>
-    <p>本项目的唯一官方发布渠道为 GitHub Releases 页面 (<code>https://github.com/msjsc001/QuickKV/releases</code>)。作者不对任何从第三方网站、论坛、社群、个人分享等非官方渠道获取的软件副本的安全性、完整性或一致性作任何保证。为避免潜在的恶意代码注入或版本篡改风险，请务必通过官方渠道下载。</p>
+    <p>本项目的唯一官方发布渠道为 GitHub Releases 页面 (<code>https://github.com/EllisMorrow/QuickKV/releases</code>)。作者不对任何从第三方网站、论坛、社群、个人分享等非官方渠道获取的软件副本的安全性、完整性或一致性作任何保证。为避免潜在的恶意代码注入或版本篡改风险，请务必通过官方渠道下载。</p>
 
     <h3>8. 无专业支持义务 (NO OBLIGATION FOR SUPPORT)</h3>
     <p>本软件为免费提供，作者没有义务提供任何形式的商业级技术支持、更新、用户培训或后续服务。作者可能会通过 GitHub Issues 等社区渠道提供帮助，但这完全出于自愿且不作任何承诺，作者保留随时忽略或关闭任何问题的权利。</p>

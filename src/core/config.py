@@ -94,13 +94,15 @@ AUTO_LOAD_DIR = os.path.join(BASE_PATH, "MD词库-需自动载入的请放入")
 WORD_FILE = os.path.join(AUTO_LOAD_DIR, "词库.md")
 CONFIG_FILE = os.path.join(USER_DATA_DIR, "config.ini")
 CLIPBOARD_HISTORY_FILE = os.path.join(AUTO_LOAD_DIR, "剪贴板词库-勿删.md")
+CLIPBOARD_TIMESTAMP_FILE = os.path.join(USER_DATA_DIR, "clipboard_timestamps.json")
+CLIPBOARD_TEXT_MAX_BYTES = 1 * 1024 * 1024
 CACHE_FILE = os.path.join(USER_DATA_DIR, "cache.json")
 RANKING_STATE_FILE = os.path.join(USER_DATA_DIR, "ranking_state.json")
 
 ICON_PATH = resource_path("icon.png")
 
 DEBUG_MODE = True
-VERSION = "1.3.5" # 默认输入主链稳定化回退
+VERSION = "1.3.6" # 数据安全与可靠性修复
 
 PASTE_MODE_CTRL_V = "ctrl_v"
 PASTE_MODE_CTRL_SHIFT_V = "ctrl_shift_v"
@@ -141,8 +143,14 @@ def is_eligible_library_file(path):
 
 def list_eligible_md_files(folder_path):
     """列出目录首层可参与普通词库加载的 md 文件。"""
+    files, _ = list_eligible_md_files_with_status(folder_path)
+    return files
+
+
+def list_eligible_md_files_with_status(folder_path):
+    """列出目录首层可参与普通词库加载的 md 文件及枚举是否成功。"""
     if not folder_path or not os.path.isdir(folder_path):
-        return []
+        return [], False
 
     files = []
     try:
@@ -152,9 +160,9 @@ def list_eligible_md_files(folder_path):
                 files.append(os.path.abspath(full_path))
     except Exception as e:
         log(f"扫描目录 {folder_path} 时列出 md 文件失败: {e}")
-        return []
+        return [], False
 
-    return sorted(files, key=lambda path: os.path.basename(path).lower())
+    return sorted(files, key=lambda path: os.path.basename(path).lower()), True
 
 # --- 主题颜色定义 ---
 THEMES = {
