@@ -3,8 +3,11 @@ import sys
 import os
 import webbrowser
 import configparser
+import copy
 import hashlib
 import json
+import tempfile
+import stat
 import subprocess
 import re
 import itertools
@@ -87,83 +90,42 @@ class SettingsManager:
         return normalized_items
 
     def load(self):
-        """
-        加载配置文件。
-        【已加固】增加了对 configparser 和 json 解析错误的全面捕获，
-        确保在配置文件损坏时程序能以后备值启动，而不是崩溃。
-        """
+        """加载配置文件；坏字段只回退自身默认值。"""
+        self._set_defaults()
+        self.config = configparser.ConfigParser()
         try:
             self.config.read(self.file_path, encoding='utf-8')
-        except configparser.Error as e:
+        except (OSError, UnicodeError, configparser.Error) as e:
             log(f"CRITICAL: 配置文件 '{self.file_path}' 解析失败: {e}。将使用默认设置。")
-            # 如果解析失败，重置 config 对象，以便后续代码能正常运行
             self.config = configparser.ConfigParser()
 
-        # 确保所有必需的 section 都存在
-        sections = ['Window', 'Theme', 'Font', 'Search', 'Data', 'General', 'Clipboard', 'Restart', 'Paste']
-        for section in sections:
-            if not self.config.has_section(section):
-                self.config.add_section(section)
-
-        # 使用 try-except 块来安全地获取每个配置项
-        try:
-            self.hotkeys_enabled = self.config.getboolean('General', 'hotkeys_enabled', fallback=True)
-            self.shortcut_code_enabled = self.config.getboolean('General', 'shortcut_code_enabled', fallback=False)
-            self.hotkey = self.config.get('General', 'hotkey', fallback='ctrl+space')
-            
-            # --- 新增：连续字符串触发器 ---
-            self.string_trigger_enabled = self.config.getboolean('General', 'string_trigger_enabled', fallback=False)
-            self.string_trigger_str = self.config.get('General', 'string_trigger_str', fallback='//')
-            
-            self.paste_mode = self.config.get('Paste', 'mode', fallback=PASTE_MODE_CTRL_V)
-            if self.paste_mode == 'smart_compat':
-                self.paste_mode = PASTE_MODE_CTRL_V
-            if self.paste_mode not in SUPPORTED_PASTE_MODES:
-                self.paste_mode = PASTE_MODE_CTRL_V
-            self.width = self.config.getint('Window', 'width', fallback=450)
-            self.height = self.config.getint('Window', 'height', fallback=300)
-            self.theme = self.config.get('Theme', 'mode', fallback='dark')
-            self.font_size = self.config.getint('Font', 'size', fallback=14)
-            self.multi_word_search = self.config.getboolean('Search', 'multi_word_search', fallback=True)
-            self.pinyin_initial_search = self.config.getboolean('Search', 'pinyin_initial_search', fallback=True)
-            self.highlight_matches = self.config.getboolean('Search', 'highlight_matches', fallback=True) # 新增
-            self.word_wrap_enabled = self.config.getboolean('UI', 'word_wrap_enabled', fallback=False)
-            self.show_source_enabled = self.config.getboolean('UI', 'show_source_enabled', fallback=False)
-            self.clipboard_memory_enabled = self.config.getboolean('Clipboard', 'enabled', fallback=False)
-            self.clipboard_memory_count = self.config.getint('Clipboard', 'count', fallback=10)
-            self.clipboard_auto_clear_enabled = self.config.getboolean('Clipboard', 'auto_clear_enabled', fallback=False)
-            self.clipboard_auto_clear_minutes = self.config.getint('Clipboard', 'auto_clear_minutes', fallback=10)
-            self.auto_restart_enabled = self.config.getboolean('Restart', 'enabled', fallback=False)
-            self.auto_restart_interval = self.config.getint('Restart', 'interval_minutes', fallback=3)
-            # 新的协议接受信息，存储为 JSON 字符串
-            disclaimer_info_str = self.config.get('General', 'accepted_disclaimer_info', fallback='{}')
-            try:
-                self.accepted_disclaimer_info = json.loads(disclaimer_info_str)
-                if not isinstance(self.accepted_disclaimer_info, dict):
-                    self.accepted_disclaimer_info = {'id': '', 'version': ''}
-            except (json.JSONDecodeError, TypeError):
-                self.accepted_disclaimer_info = {'id': '', 'version': ''}
-
-            libraries_str = self.config.get('General', 'libraries', fallback='[]')
-            try:
-                self.libraries = json.loads(libraries_str)
-                if not isinstance(self.libraries, list): self.libraries = []
-            except (json.JSONDecodeError, TypeError):
-                self.libraries = []
-
-            auto_libraries_str = self.config.get('General', 'auto_libraries', fallback='[]')
-            try:
-                self.auto_libraries = json.loads(auto_libraries_str)
-                if not isinstance(self.auto_libraries, list): self.auto_libraries = []
-            except (json.JSONDecodeError, TypeError):
-                self.auto_libraries = []
-
-        except (configparser.NoOptionError, configparser.NoSectionError, ValueError) as e:
-            log(f"CRITICAL: 读取配置项时出错: {e}。部分设置将恢复为默认值。")
-            # 如果在获取过程中出错，确保所有属性都有一个默认值
-            self.hotkeys_enabled = getattr(self, 'hotkeys_enabled', True)
-            self.shortcut_code_enabled = getattr(self, 'shortcut_code_enabled', False)
-            # ... (其他属性以此类推，fallback 已经处理了大部分情况)
+        self._ensure_sections()
+        self.hotkeys_enabled = self._getboolean('General', 'hotkeys_enabled', self.hotkeys_enabled)
+        self.shortcut_code_enabled = self._getboolean('General', 'shortcut_code_enabled', self.shortcut_code_enabled)
+        self.hotkey = self._get('General', 'hotkey', self.hotkey)
+        self.string_trigger_enabled = self._getboolean('General', 'string_trigger_enabled', self.string_trigger_enabled)
+        self.string_trigger_str = self._get('General', 'string_trigger_str', self.string_trigger_str)
+        self.paste_mode = self._get('Paste', 'mode', self.paste_mode)
+        if self.paste_mode == 'smart_compat' or self.paste_mode not in SUPPORTED_PASTE_MODES:
+            self.paste_mode = PASTE_MODE_CTRL_V
+        self.width = self._getint('Window', 'width', self.width)
+        self.height = self._getint('Window', 'height', self.height)
+        self.theme = self._get('Theme', 'mode', self.theme)
+        self.font_size = self._getint('Font', 'size', self.font_size)
+        self.multi_word_search = self._getboolean('Search', 'multi_word_search', self.multi_word_search)
+        self.pinyin_initial_search = self._getboolean('Search', 'pinyin_initial_search', self.pinyin_initial_search)
+        self.highlight_matches = self._getboolean('Search', 'highlight_matches', self.highlight_matches)
+        self.word_wrap_enabled = self._getboolean('UI', 'word_wrap_enabled', self.word_wrap_enabled)
+        self.show_source_enabled = self._getboolean('UI', 'show_source_enabled', self.show_source_enabled)
+        self.clipboard_memory_enabled = self._getboolean('Clipboard', 'enabled', self.clipboard_memory_enabled)
+        self.clipboard_memory_count = self._getint('Clipboard', 'count', self.clipboard_memory_count)
+        self.clipboard_auto_clear_enabled = self._getboolean('Clipboard', 'auto_clear_enabled', self.clipboard_auto_clear_enabled)
+        self.clipboard_auto_clear_minutes = self._getint('Clipboard', 'auto_clear_minutes', self.clipboard_auto_clear_minutes)
+        self.auto_restart_enabled = self._getboolean('Restart', 'enabled', self.auto_restart_enabled)
+        self.auto_restart_interval = self._getint('Restart', 'interval_minutes', self.auto_restart_interval)
+        self.accepted_disclaimer_info = self._get_json('General', 'accepted_disclaimer_info', self.accepted_disclaimer_info, dict)
+        self.libraries = self._get_json('General', 'libraries', self.libraries, list)
+        self.auto_libraries = self._get_json('General', 'auto_libraries', self.auto_libraries, list)
 
         # 迁移和验证逻辑保持不变
         if not self.libraries and os.path.exists(WORD_FILE):
@@ -173,35 +135,117 @@ class SettingsManager:
         self.libraries = self._normalize_library_items(self.libraries, allow_folders=True)
         self.auto_libraries = self._normalize_library_items(self.auto_libraries, allow_folders=False)
 
+    def _set_defaults(self):
+        self.hotkeys_enabled = True
+        self.shortcut_code_enabled = False
+        self.hotkey = 'ctrl+space'
+        self.string_trigger_enabled = False
+        self.string_trigger_str = '//'
+        self.paste_mode = PASTE_MODE_CTRL_V
+        self.width = 450
+        self.height = 300
+        self.theme = 'dark'
+        self.font_size = 14
+        self.multi_word_search = True
+        self.pinyin_initial_search = True
+        self.highlight_matches = True
+        self.word_wrap_enabled = False
+        self.show_source_enabled = False
+        self.clipboard_memory_enabled = False
+        self.clipboard_memory_count = 10
+        self.clipboard_auto_clear_enabled = False
+        self.clipboard_auto_clear_minutes = 10
+        self.auto_restart_enabled = False
+        self.auto_restart_interval = 3
+        self.accepted_disclaimer_info = {'id': '', 'version': ''}
+        self.libraries = []
+        self.auto_libraries = []
+
+    def _ensure_sections(self, config=None):
+        config = self.config if config is None else config
+        for section in ('Window', 'Theme', 'Font', 'Search', 'Data', 'General', 'UI', 'Clipboard', 'Restart', 'Paste'):
+            if not config.has_section(section):
+                config.add_section(section)
+
+    def _get(self, section, option, default):
+        try:
+            return self.config.get(section, option, fallback=default)
+        except (configparser.Error, ValueError):
+            return default
+
+    def _getint(self, section, option, default):
+        try:
+            return self.config.getint(section, option, fallback=default)
+        except (configparser.Error, ValueError):
+            return default
+
+    def _getboolean(self, section, option, default):
+        try:
+            return self.config.getboolean(section, option, fallback=default)
+        except (configparser.Error, ValueError):
+            return default
+
+    def _get_json(self, section, option, default, expected_type):
+        try:
+            value = json.loads(self._get(section, option, ''))
+        except (TypeError, ValueError, json.JSONDecodeError):
+            return default
+        return value if isinstance(value, expected_type) else default
+
     def save(self):
-        self.config['General']['hotkeys_enabled'] = str(self.hotkeys_enabled)
-        self.config['General']['shortcut_code_enabled'] = str(self.shortcut_code_enabled) # 新增：保存快捷码功能开关
-        self.config['General']['hotkey'] = self.hotkey
-        self.config['Window']['width'] = str(self.width)
-        self.config['Window']['height'] = str(self.height)
-        self.config['Theme']['mode'] = self.theme
-        self.config['Font']['size'] = str(self.font_size)
-        self.config['Search']['multi_word_search'] = str(self.multi_word_search)
-        self.config['Search']['pinyin_initial_search'] = str(self.pinyin_initial_search)
-        self.config['Search']['highlight_matches'] = str(self.highlight_matches) # 新增
-        if not self.config.has_section('UI'): self.config.add_section('UI')
-        self.config['UI']['word_wrap_enabled'] = str(self.word_wrap_enabled)
-        self.config['UI']['show_source_enabled'] = str(self.show_source_enabled)
-        self.config['General']['libraries'] = json.dumps(self.libraries, ensure_ascii=False)
-        self.config['General']['auto_libraries'] = json.dumps(self.auto_libraries, ensure_ascii=False)
-        self.config['Clipboard']['enabled'] = str(self.clipboard_memory_enabled)
-        self.config['Clipboard']['count'] = str(self.clipboard_memory_count)
-        self.config['Clipboard']['auto_clear_enabled'] = str(self.clipboard_auto_clear_enabled)
-        self.config['Clipboard']['auto_clear_minutes'] = str(self.clipboard_auto_clear_minutes)
-        self.config['Restart']['enabled'] = str(self.auto_restart_enabled)
-        self.config['Restart']['interval_minutes'] = str(self.auto_restart_interval)
-        self.config['Paste']['mode'] = self.paste_mode
-        self.config['General']['accepted_disclaimer_info'] = json.dumps(self.accepted_disclaimer_info, ensure_ascii=False)
+        candidate = copy.deepcopy(self.config)
+        self._ensure_sections(candidate)
+        candidate['General']['hotkeys_enabled'] = str(self.hotkeys_enabled)
+        candidate['General']['shortcut_code_enabled'] = str(self.shortcut_code_enabled) # 新增：保存快捷码功能开关
+        candidate['General']['hotkey'] = self.hotkey
+        candidate['Window']['width'] = str(self.width)
+        candidate['Window']['height'] = str(self.height)
+        candidate['Theme']['mode'] = self.theme
+        candidate['Font']['size'] = str(self.font_size)
+        candidate['Search']['multi_word_search'] = str(self.multi_word_search)
+        candidate['Search']['pinyin_initial_search'] = str(self.pinyin_initial_search)
+        candidate['Search']['highlight_matches'] = str(self.highlight_matches) # 新增
+        candidate['UI']['word_wrap_enabled'] = str(self.word_wrap_enabled)
+        candidate['UI']['show_source_enabled'] = str(self.show_source_enabled)
+        candidate['General']['libraries'] = json.dumps(self.libraries, ensure_ascii=False)
+        candidate['General']['auto_libraries'] = json.dumps(self.auto_libraries, ensure_ascii=False)
+        candidate['Clipboard']['enabled'] = str(self.clipboard_memory_enabled)
+        candidate['Clipboard']['count'] = str(self.clipboard_memory_count)
+        candidate['Clipboard']['auto_clear_enabled'] = str(self.clipboard_auto_clear_enabled)
+        candidate['Clipboard']['auto_clear_minutes'] = str(self.clipboard_auto_clear_minutes)
+        candidate['Restart']['enabled'] = str(self.auto_restart_enabled)
+        candidate['Restart']['interval_minutes'] = str(self.auto_restart_interval)
+        candidate['Paste']['mode'] = self.paste_mode
+        candidate['General']['accepted_disclaimer_info'] = json.dumps(self.accepted_disclaimer_info, ensure_ascii=False)
         
         # --- 新增：连续字符串触发器 ---
-        self.config['General']['string_trigger_enabled'] = str(self.string_trigger_enabled)
-        self.config['General']['string_trigger_str'] = self.string_trigger_str
+        candidate['General']['string_trigger_enabled'] = str(self.string_trigger_enabled)
+        candidate['General']['string_trigger_str'] = self.string_trigger_str
         
-        with open(self.file_path, 'w', encoding='utf-8') as configfile:
-            self.config.write(configfile)
+        directory = os.path.dirname(os.path.abspath(self.file_path))
+        temp_path = None
+        try:
+            existing_mode = None
+            if os.path.exists(self.file_path):
+                existing_mode = stat.S_IMODE(os.stat(self.file_path).st_mode)
+            fd, temp_path = tempfile.mkstemp(prefix='.config-', suffix='.tmp', dir=directory)
+            if existing_mode is not None:
+                os.chmod(temp_path, existing_mode)
+            with os.fdopen(fd, 'w', encoding='utf-8') as configfile:
+                candidate.write(configfile)
+                configfile.flush()
+                os.fsync(configfile.fileno())
+            os.replace(temp_path, self.file_path)
+            temp_path = None
+        except (OSError, TypeError, ValueError) as e:
+            log(f"配置保存失败: {e}")
+            return False
+        finally:
+            if temp_path:
+                try:
+                    os.unlink(temp_path)
+                except OSError:
+                    pass
+        self.config = candidate
         log(f"配置已保存到 {self.file_path}")
+        return True

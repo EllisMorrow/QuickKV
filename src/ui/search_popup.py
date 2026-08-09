@@ -296,7 +296,12 @@ class SearchPopup(QWidget):
         super().showEvent(event)
 
     def hideEvent(self, event):
-        self.settings.width = self.width(); self.settings.height = self.height(); self.settings.save(); super().hideEvent(event)
+        previous_width, previous_height = self.settings.width, self.settings.height
+        self.settings.width, self.settings.height = self.width(), self.height()
+        if not self.settings.save():
+            self.settings.width, self.settings.height = previous_width, previous_height
+            log("窗口尺寸保存失败，已保留上次的配置尺寸。")
+        super().hideEvent(event)
 
     def apply_theme(self):
         theme = THEMES[self.settings.theme]
@@ -490,10 +495,14 @@ class SearchPopup(QWidget):
             self.controller.add_entry(text)
 
     def edit_item(self, item):
-        self.controller.edit_entry(item.text())
+        selected_block = item.data(Qt.UserRole)
+        if selected_block:
+            self.controller.edit_entry(selected_block)
 
     def delete_item(self, item):
-        self.controller.delete_entry(item.text())
+        selected_block = item.data(Qt.UserRole)
+        if selected_block:
+            self.controller.delete_entry(selected_block)
 
     def add_clipboard_item_to_library(self, item):
         text = item.text().replace('- ', '', 1).strip()
