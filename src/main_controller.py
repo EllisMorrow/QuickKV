@@ -11,6 +11,7 @@ import itertools
 import threading
 import ctypes
 import time
+import copy
 from ctypes import wintypes
 from PySide6.QtWidgets import (QApplication, QWidget, QVBoxLayout, QHBoxLayout, QLineEdit,
                              QListWidget, QListWidgetItem, QSystemTrayIcon, QMenu, QSizeGrip,
@@ -42,6 +43,7 @@ except ImportError:
 import builtins
 # Dependency Injection
 from core.config import *
+from core.clipboard_timestamps import ClipboardTimestampStore, content_key, utf8_size_at_most
 from core.template_renderer import TemplateRenderer, TemplateRenderError
 from ui.search_popup import SearchPopup
 from ui.components import HotkeyDialog, DisclaimerDialog, ScrollableMessageBox, get_disclaimer_html_text, EditDialog, TemplateInputDialog
@@ -90,8 +92,37 @@ class MainController(QObject):
         'rwin': 0x5C,
     }
 
-    def __init__(self, app, word_manager, settings_manager, ranking_state_manager=None, template_renderer=None):
-        super().__init__(); self.app = app; self.word_manager = word_manager; self.settings = settings_manager; self.ranking_state = ranking_state_manager; self.template_renderer = template_renderer or TemplateRenderer(); self.menu = None; self.auto_library_menu = None
+    def _update_settings(self, *, rollback_runtime=None, notify=True, **changes):
+        """Persist a settings change or restore the complete affected state.
+
+        External listeners are changed only after this succeeds where possible;
+        callers that had to touch one first can supply its restoration callback.
+        """
+        previous = {
+            name: copy.deepcopy(getattr(self.settings, name))
+            for name in changes
+        }
+        for name, value in changes.items():
+            setattr(self.settings, name, value)
+
+        if self.settings.save():
+            return True
+
+        for name, value in previous.items():
+            setattr(self.settings, name, value)
+        if rollback_runtime:
+            rollback_runtime()
+        log("配置保存失败，已恢复本次设置变更。")
+        if notify:
+            QMessageBox.warning(self.popup, "保存失败", "设置无法保存，已恢复原来的设置。")
+        return False
+
+    def _save_settings(self, *, notify=True):
+        """Save unchanged settings for actions such as restart."""
+        return self._update_settings(notify=notify)
+
+    def __init__(self, app, word_manager, settings_manager, ranking_state_manager=None, template_renderer=None, instance_manager=None):
+        super().__init__(); self.app = app; self.word_manager = word_manager; self.settings = settings_manager; self.ranking_state = ranking_state_manager; self.template_renderer = template_renderer or TemplateRenderer(); self.instance_manager = instance_manager; self.menu = None; self.auto_library_menu = None
         self.popup = SearchPopup(self.word_manager, self.settings)
         self.popup.controller = self # 将 controller 实例传递给 popup
         self.show_popup_signal.connect(self.popup.show_and_focus)
@@ -134,6 +165,7 @@ class MainController(QObject):
         self.update_auto_restart_timer()
 
         # 初始化剪贴板定时清除
+        self.clipboard_timestamp_store = ClipboardTimestampStore(CLIPBOARD_TIMESTAMP_FILE, log)
         self.clipboard_timestamps = {}
         self.sync_clipboard_timestamps()
         
@@ -179,11 +211,19 @@ class MainController(QObject):
         if not current_text or current_text == getattr(self, "_last_clipboard_text", ""):
             return
 
+        text_size, is_too_large = utf8_size_at_most(current_text, CLIPBOARD_TEXT_MAX_BYTES)
+        if is_too_large:
+            log(
+                "跳过过大的剪贴板文本: "
+                f"UTF-8 字节数超过 {CLIPBOARD_TEXT_MAX_BYTES}（已检测 {text_size}）"
+            )
+            return
+
         # --- 核心逻辑 ---
         self._last_clipboard_text = current_text
         # 换行符规范化
         normalized_text = '\n'.join(current_text.splitlines())
-        log(f"检测到新的剪贴板内容 (事件驱动): '{normalized_text}'")
+        log(f"检测到新的剪贴板内容（事件驱动，UTF-8 字节数: {text_size}）")
         
         was_added = self.word_manager.add_to_clipboard_history(normalized_text)
         
@@ -197,13 +237,10 @@ class MainController(QObject):
         if current_time is None:
             current_time = time.time()
 
-        existing_timestamps = getattr(self, 'clipboard_timestamps', {})
-        synced_timestamps = {}
-        for block in self.word_manager.clipboard_history:
-            key = block['full_content']
-            synced_timestamps[key] = existing_timestamps.get(key, current_time)
-
-        self.clipboard_timestamps = synced_timestamps
+        self.clipboard_timestamps = self.clipboard_timestamp_store.sync(
+            (block['full_content'] for block in self.word_manager.clipboard_history),
+            current_time,
+        )
 
     def _start_detached_process(self, program, arguments):
         """兼容 PySide6 不同返回值形态的 detached 启动封装。"""
@@ -327,15 +364,25 @@ class MainController(QObject):
             log(f"热键触发：打开窗口。目标 hwnd={self.last_popup_target_hwnd}")
             self.show_popup_signal.emit()
 
+    def activate_from_second_instance(self):
+        """Bring the already-owned search window to the foreground via local IPC."""
+        log("收到第二实例的激活请求。")
+        self.show_popup_signal.emit()
+
     @Slot(str)
     def on_hotkey_registration_failed(self, message):
         """统一处理系统级热键注册失败，避免 UI 与配置状态脱节。"""
+        old_hotkey = self.settings.hotkey
+        was_enabled = self.settings.hotkeys_enabled
         self.hotkey_manager.stop_hotkey()
-        if self.settings.hotkeys_enabled:
-            self.settings.hotkeys_enabled = False
-            self.settings.save()
+        if was_enabled:
+            self._update_settings(
+                hotkeys_enabled=False,
+                notify=False,
+                rollback_runtime=lambda: self.hotkey_manager.reregister(old_hotkey),
+            )
         if hasattr(self, 'toggle_hotkeys_action'):
-            self.toggle_hotkeys_action.setChecked(False)
+            self.toggle_hotkeys_action.setChecked(self.settings.hotkeys_enabled)
         log(f"CRITICAL: {message}")
         QMessageBox.warning(self.popup, "热键注册失败", message)
 
@@ -435,8 +482,14 @@ class MainController(QObject):
 
     @Slot(str)
     def on_suggestion_selected(self, text, target_hwnd=None, origin='popup'):
-        log(f"已选择词条块: '{text}'")
         found_block = self._find_block_by_full_content(text)
+        if found_block and found_block.get('is_clipboard'):
+            source_type = 'clipboard'
+        elif found_block:
+            source_type = 'library'
+        else:
+            source_type = 'unresolved'
+        log(f"已选择词条块: source={source_type} utf8_bytes={len(text.encode('utf-8'))}")
         content_to_paste = self._build_output_content(text, found_block)
 
         rendered_content = self.render_template_output(content_to_paste)
@@ -600,22 +653,16 @@ class MainController(QObject):
             else:
                 QMessageBox.warning(self.popup, "错误", f"向 {os.path.basename(target_path)} 添加词条失败！")
     
-    @Slot(str)
-    def edit_entry(self, original_content):
-        # Find the block to get its properties
-        found_block = None
-        search_pool = self.word_manager.word_blocks + self.word_manager.clipboard_history
-        for block in search_pool:
-            if block['full_content'] == original_content:
-                found_block = block
-                break
-        
-        if not found_block:
+    @Slot(object)
+    def edit_entry(self, selected_block):
+        if not selected_block or not selected_block.get('full_content') or not selected_block.get('source_path'):
             QMessageBox.warning(self.popup, "错误", "找不到要编辑的词条。")
             return
 
-        is_clipboard = found_block.get('source_path') == CLIPBOARD_HISTORY_FILE
-        source_path = found_block.get('source_path')
+        original_content = selected_block.get('full_content')
+        source_path = selected_block.get('source_path')
+        block_index = selected_block.get('block_index')
+        source_revision = selected_block.get('source_revision')
         
         source = self.word_manager.get_source_by_path(source_path)
 
@@ -626,7 +673,7 @@ class MainController(QObject):
         dialog = EditDialog(self.popup, original_content, THEMES[self.settings.theme], self.settings.font_size)
         if dialog.exec():
             new_content = dialog.get_text()
-            if source.update_entry(original_content, new_content):
+            if source.update_entry(original_content, new_content, block_index, source_revision):
                 # 统一调用全量重载，它会处理缓存、快捷码和UI刷新
                 self.schedule_full_reload()
                 
@@ -635,22 +682,16 @@ class MainController(QObject):
             else:
                 QMessageBox.warning(self.popup, "错误", f"更新 {os.path.basename(source.file_path)} 中的词条失败！")
 
-    @Slot(str)
-    def delete_entry(self, content):
-        # Find the block to get its properties
-        found_block = None
-        search_pool = self.word_manager.word_blocks + self.word_manager.clipboard_history
-        for block in search_pool:
-            if block['full_content'] == content:
-                found_block = block
-                break
-
-        if not found_block:
+    @Slot(object)
+    def delete_entry(self, selected_block):
+        if not selected_block or not selected_block.get('full_content') or not selected_block.get('source_path'):
             QMessageBox.warning(self.popup, "错误", "找不到要删除的词条。")
             return
 
-        is_clipboard = found_block.get('source_path') == CLIPBOARD_HISTORY_FILE
-        source_path = found_block.get('source_path')
+        content = selected_block.get('full_content')
+        source_path = selected_block.get('source_path')
+        block_index = selected_block.get('block_index')
+        source_revision = selected_block.get('source_revision')
  
         source = self.word_manager.get_source_by_path(source_path)
 
@@ -667,7 +708,7 @@ class MainController(QObject):
         )
         
         if dialog.exec() == QDialog.Accepted:
-            if source.delete_entry(content):
+            if source.delete_entry(content, block_index, source_revision):
                 # 统一调用全量重载
                 self.schedule_full_reload()
                 
@@ -684,19 +725,19 @@ class MainController(QObject):
         # 2. 添加到目标词库
         source = self.word_manager.get_source_by_path(target_path)
         if source and source.add_entry(f"- {text_to_add}"):
-            log(f"已将 '{text_to_add}' 添加到 {os.path.basename(target_path)}")
+            log(f"已将 1 条剪贴板历史移至 {os.path.basename(target_path)}")
             self.schedule_full_reload() # 安排重载来更新所有状态
 
             # 3. 从剪贴板历史中删除
             if self.word_manager.clipboard_source.delete_entry(item_content):
-                log(f"已从剪贴板历史中删除 '{item_content}'")
+                log("已从剪贴板历史中删除 1 条。")
                 # 4. 刷新
                 self.word_manager.load_clipboard_history()
                 self.sync_clipboard_timestamps(current_time=time.time())
                 if self.popup.isVisible():
                     self.popup.update_list(self.popup.search_box.text())
             else:
-                log(f"从剪贴板历史删除 '{item_content}' 失败")
+                log("从剪贴板历史删除条目失败。")
                 QMessageBox.warning(self.popup, "警告", "条目已添加到新词库，但从剪贴板历史中删除失败。")
         else:
             QMessageBox.warning(self.popup, "错误", f"无法将条目添加到 {os.path.basename(target_path)}")
@@ -755,8 +796,10 @@ class MainController(QObject):
                 QMessageBox.information(self.popup, "提示", "该词库已在列表中。")
                 return
             
-            self.settings.libraries.append({"path": file_path, "enabled": True, "kind": "file"})
-            self.settings.save()
+            if not self._update_settings(
+                libraries=self.settings.libraries + [{"path": file_path, "enabled": True, "kind": "file"}]
+            ):
+                return
             self.restart_file_observer()
             self.perform_full_reload() # 立即执行重载，因为这是用户直接操作
             self.rebuild_library_menu()
@@ -770,8 +813,10 @@ class MainController(QObject):
                 QMessageBox.information(self.popup, "提示", "该词库文件夹已在列表中。")
                 return
 
-            self.settings.libraries.append({"path": folder_path, "enabled": True, "kind": "folder"})
-            self.settings.save()
+            if not self._update_settings(
+                libraries=self.settings.libraries + [{"path": folder_path, "enabled": True, "kind": "folder"}]
+            ):
+                return
             self.restart_file_observer()
             self.perform_full_reload()
             self.rebuild_library_menu()
@@ -786,11 +831,12 @@ class MainController(QObject):
     @Slot(str)
     def remove_library(self, path):
         norm_path = normalize_library_path(path)
-        self.settings.libraries = [
+        libraries = [
             lib for lib in self.settings.libraries
             if not lib.get('path') or normalize_library_path(lib.get('path')) != norm_path
         ]
-        self.settings.save()
+        if not self._update_settings(libraries=libraries):
+            return
         self.restart_file_observer()
         self.perform_full_reload() # 立即执行重载
         self.rebuild_library_menu()
@@ -798,23 +844,27 @@ class MainController(QObject):
     @Slot(str)
     def toggle_library_enabled(self, path):
         norm_path = normalize_library_path(path)
-        for lib in self.settings.libraries:
+        libraries = copy.deepcopy(self.settings.libraries)
+        for lib in libraries:
             lib_path = lib.get('path')
             if lib_path and normalize_library_path(lib_path) == norm_path:
                 lib['enabled'] = not lib.get('enabled', True)
                 break
-        self.settings.save()
+        if not self._update_settings(libraries=libraries):
+            return
         self.restart_file_observer()
         self.perform_full_reload() # 立即执行重载
         self.rebuild_library_menu()
 
     @Slot(str)
     def toggle_auto_library_enabled(self, path):
-        for lib in self.settings.auto_libraries:
+        auto_libraries = copy.deepcopy(self.settings.auto_libraries)
+        for lib in auto_libraries:
             if lib.get('path') == path:
                 lib['enabled'] = not lib.get('enabled', True)
                 break
-        self.settings.save()
+        if not self._update_settings(auto_libraries=auto_libraries):
+            return
         self.perform_full_reload() # 立即执行重载
         self.rebuild_auto_library_menu()
 
@@ -937,6 +987,8 @@ class MainController(QObject):
         if self.shortcut_listener:
             self.shortcut_listener.stop() # 退出时停止快捷码监听
         self.stop_file_observer() # 确保停止 watchdog
+        if self.instance_manager:
+            self.instance_manager.release()
         log("所有监听器已停止，程序准备退出。")
 
     @Slot()
@@ -945,13 +997,14 @@ class MainController(QObject):
         if mode not in SUPPORTED_PASTE_MODES:
             return
         if self.settings.paste_mode != mode:
-            self.settings.paste_mode = mode
-            self.settings.save()
-            log(f"粘贴模式已切换为: {mode}")
+            if self._update_settings(paste_mode=mode):
+                log(f"粘贴模式已切换为: {mode}")
 
     @Slot()
     def toggle_hotkeys_enabled(self):
         enable_hotkeys = not self.settings.hotkeys_enabled
+        old_hotkey = self.settings.hotkey
+        was_enabled = self.settings.hotkeys_enabled
         if enable_hotkeys:
             success, normalized_hotkey, error_message = self.hotkey_manager.reregister(self.settings.hotkey)
             if not success:
@@ -960,15 +1013,20 @@ class MainController(QObject):
                 QMessageBox.warning(self.popup, "热键注册失败", error_message)
                 return
 
-            self.settings.hotkeys_enabled = True
-            self.settings.hotkey = normalized_hotkey
-            log(f"快捷键已启用: {normalized_hotkey}")
+            restored = lambda: (
+                self.hotkey_manager.reregister(old_hotkey)
+                if was_enabled else self.hotkey_manager.unregister_all()
+            )
+            if self._update_settings(
+                hotkeys_enabled=True,
+                hotkey=normalized_hotkey,
+                rollback_runtime=restored,
+            ):
+                log(f"快捷键已启用: {normalized_hotkey}")
         else:
-            self.hotkey_manager.unregister_all()
-            self.settings.hotkeys_enabled = False
-            log("快捷键已禁用。")
-
-        self.settings.save()
+            if self._update_settings(hotkeys_enabled=False):
+                self.hotkey_manager.unregister_all()
+                log("快捷键已禁用。")
         
         if hasattr(self, 'toggle_hotkeys_action'):
             self.toggle_hotkeys_action.setChecked(self.settings.hotkeys_enabled)
@@ -976,8 +1034,11 @@ class MainController(QObject):
     @Slot()
     def toggle_shortcut_code_enabled(self):
         """切换快捷码功能的启用状态"""
-        self.settings.shortcut_code_enabled = not self.settings.shortcut_code_enabled
-        self.settings.save()
+        enabled = not self.settings.shortcut_code_enabled
+        if not self._update_settings(shortcut_code_enabled=enabled):
+            if hasattr(self, 'toggle_shortcut_code_action'):
+                self.toggle_shortcut_code_action.setChecked(self.settings.shortcut_code_enabled)
+            return
         if self.settings.shortcut_code_enabled:
             self.shortcut_listener.start()
             log("快捷码功能已启用。")
@@ -991,14 +1052,17 @@ class MainController(QObject):
     @Slot()
     def toggle_theme(self):
         new_theme = "light" if self.settings.theme == "dark" else "dark"
-        self.settings.theme = new_theme; self.settings.save()
+        if not self._update_settings(theme=new_theme):
+            return
         log(f"切换主题为: {new_theme}"); self.popup.apply_theme(); self.apply_menu_theme()
         if hasattr(self, 'toggle_theme_action'): self.toggle_theme_action.setText(f"切换到 {'夜间' if new_theme == 'light' else '日间'} 模式")
 
     @Slot()
     def toggle_multi_word_search(self):
-        self.settings.multi_word_search = not self.settings.multi_word_search
-        self.settings.save()
+        if not self._update_settings(multi_word_search=not self.settings.multi_word_search):
+            if hasattr(self, 'multi_word_search_action'):
+                self.multi_word_search_action.setChecked(self.settings.multi_word_search)
+            return
         log(f"多词搜索模式: {'开启' if self.settings.multi_word_search else '关闭'}")
         if hasattr(self, 'multi_word_search_action'):
             self.multi_word_search_action.setChecked(self.settings.multi_word_search)
@@ -1009,8 +1073,8 @@ class MainController(QObject):
         new_size, ok = QInputDialog.getInt(None, "设置字体大小", "请输入新的字体大小 (例如: 14):", current_size, 8, 72, 1)
         
         if ok and new_size != current_size:
-            self.settings.font_size = new_size
-            self.settings.save()
+            if not self._update_settings(font_size=new_size):
+                return
             log(f"字体大小已更新为: {new_size}")
             self.popup.apply_theme()
             QMessageBox.information(None, "成功", f"字体大小已设置为 {new_size}！")
@@ -1018,8 +1082,10 @@ class MainController(QObject):
     @Slot()
     def toggle_highlight_matches(self):
         """切换匹配高亮的启用状态"""
-        self.settings.highlight_matches = not self.settings.highlight_matches
-        self.settings.save()
+        if not self._update_settings(highlight_matches=not self.settings.highlight_matches):
+            if hasattr(self, 'highlight_matches_action'):
+                self.highlight_matches_action.setChecked(self.settings.highlight_matches)
+            return
         log(f"匹配高亮: {'开启' if self.settings.highlight_matches else '关闭'}")
         if hasattr(self, 'highlight_matches_action'):
             self.highlight_matches_action.setChecked(self.settings.highlight_matches)
@@ -1030,8 +1096,10 @@ class MainController(QObject):
     @Slot()
     def toggle_word_wrap(self):
         """切换自动换行的启用状态"""
-        self.settings.word_wrap_enabled = not self.settings.word_wrap_enabled
-        self.settings.save()
+        if not self._update_settings(word_wrap_enabled=not self.settings.word_wrap_enabled):
+            if hasattr(self, 'word_wrap_action'):
+                self.word_wrap_action.setChecked(self.settings.word_wrap_enabled)
+            return
         log(f"自动换行: {'开启' if self.settings.word_wrap_enabled else '关闭'}")
         if hasattr(self, 'word_wrap_action'):
             self.word_wrap_action.setChecked(self.settings.word_wrap_enabled)
@@ -1041,8 +1109,10 @@ class MainController(QObject):
     @Slot()
     def toggle_show_source(self):
         """切换归属显示的启用状态"""
-        self.settings.show_source_enabled = not self.settings.show_source_enabled
-        self.settings.save()
+        if not self._update_settings(show_source_enabled=not self.settings.show_source_enabled):
+            if hasattr(self, 'show_source_action'):
+                self.show_source_action.setChecked(self.settings.show_source_enabled)
+            return
         log(f"词条归属显示: {'开启' if self.settings.show_source_enabled else '关闭'}")
         if hasattr(self, 'show_source_action'):
             self.show_source_action.setChecked(self.settings.show_source_enabled)
@@ -1051,8 +1121,10 @@ class MainController(QObject):
 
     @Slot()
     def toggle_pinyin_initial_search(self):
-        self.settings.pinyin_initial_search = not self.settings.pinyin_initial_search
-        self.settings.save()
+        if not self._update_settings(pinyin_initial_search=not self.settings.pinyin_initial_search):
+            if hasattr(self, 'pinyin_search_action'):
+                self.pinyin_search_action.setChecked(self.settings.pinyin_initial_search)
+            return
         log(f"拼音首字母匹配: {'开启' if self.settings.pinyin_initial_search else '关闭'}")
         if hasattr(self, 'pinyin_search_action'):
             self.pinyin_search_action.setChecked(self.settings.pinyin_initial_search)
@@ -1115,12 +1187,21 @@ class MainController(QObject):
 
             self.hotkey_manager.update_string_trigger(str_en, str_val)
 
-            self.settings.hotkeys_enabled = hot_en
-            self.settings.hotkey = normalized_hotkey
-            self.settings.string_trigger_enabled = str_en
-            self.settings.string_trigger_str = str_val
+            def restore_previous_triggers():
+                if old_hotkeys_enabled:
+                    self.hotkey_manager.reregister(old_hotkey)
+                else:
+                    self.hotkey_manager.unregister_all()
+                self.hotkey_manager.update_string_trigger(old_string_enabled, old_string_value)
 
-            self.settings.save()
+            if not self._update_settings(
+                hotkeys_enabled=hot_en,
+                hotkey=normalized_hotkey,
+                string_trigger_enabled=str_en,
+                string_trigger_str=str_val,
+                rollback_runtime=restore_previous_triggers,
+            ):
+                return
             log(f"触发配置已更新 | 组合键: {hot_en} '{normalized_hotkey}' | 连续字符串: {str_en} '{str_val}'")
             QMessageBox.information(None, "成功", "触发方式设置已更新！")
 
@@ -1166,8 +1247,10 @@ class MainController(QObject):
     # --- 新增：剪贴板菜单相关方法 ---
     @Slot()
     def toggle_clipboard_memory(self):
-        self.settings.clipboard_memory_enabled = not self.settings.clipboard_memory_enabled
-        self.settings.save()
+        if not self._update_settings(clipboard_memory_enabled=not self.settings.clipboard_memory_enabled):
+            if hasattr(self, 'clipboard_memory_action'):
+                self.clipboard_memory_action.setChecked(self.settings.clipboard_memory_enabled)
+            return
         # self.update_clipboard_monitor_status()
         if hasattr(self, 'clipboard_memory_action'):
             self.clipboard_memory_action.setChecked(self.settings.clipboard_memory_enabled)
@@ -1182,8 +1265,8 @@ class MainController(QObject):
                                              "请输入剪贴板记忆的最大条数:",
                                              current_count, 1, 100, 1)
         if ok and new_count != current_count:
-            self.settings.clipboard_memory_count = new_count
-            self.settings.save()
+            if not self._update_settings(clipboard_memory_count=new_count):
+                return
             log(f"剪贴板记忆次数已更新为: {new_count}")
             QMessageBox.information(None, "成功", f"剪贴板记忆次数已设置为 {new_count} 条！")
 
@@ -1194,7 +1277,6 @@ class MainController(QObject):
                                      QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
         if reply == QMessageBox.Yes:
             if self.word_manager.clear_clipboard_history():
-                self.clipboard_timestamps = {}
                 self.sync_clipboard_timestamps()
                 QMessageBox.information(None, "成功", "剪贴板历史已清空！")
                 if self.popup.isVisible():
@@ -1204,8 +1286,10 @@ class MainController(QObject):
 
     @Slot()
     def toggle_clipboard_auto_clear(self):
-        self.settings.clipboard_auto_clear_enabled = not self.settings.clipboard_auto_clear_enabled
-        self.settings.save()
+        if not self._update_settings(clipboard_auto_clear_enabled=not self.settings.clipboard_auto_clear_enabled):
+            if hasattr(self, 'clipboard_auto_clear_action'):
+                self.clipboard_auto_clear_action.setChecked(self.settings.clipboard_auto_clear_enabled)
+            return
         if hasattr(self, 'clipboard_auto_clear_action'):
             self.clipboard_auto_clear_action.setChecked(self.settings.clipboard_auto_clear_enabled)
         
@@ -1223,8 +1307,8 @@ class MainController(QObject):
                                               "请输入经过多少分钟后清除:",
                                               current_minutes, 1, 1440, 1)
         if ok and new_minutes != current_minutes:
-            self.settings.clipboard_auto_clear_minutes = new_minutes
-            self.settings.save()
+            if not self._update_settings(clipboard_auto_clear_minutes=new_minutes):
+                return
             log(f"剪贴板清除时间已更新为: {new_minutes} 分钟")
             self.check_clipboard_auto_clear()
             QMessageBox.information(None, "成功", f"剪贴板清除时间已设置为 {new_minutes} 分钟！")
@@ -1238,17 +1322,17 @@ class MainController(QObject):
         threshold = self.settings.clipboard_auto_clear_minutes * 60
         items_to_delete = []
         
-        for text, timestamp in list(self.clipboard_timestamps.items()):
+        for block in self.word_manager.clipboard_history:
+            full_content = block['full_content']
+            timestamp = self.clipboard_timestamps.get(content_key(full_content), current_time)
             if current_time - timestamp > threshold:
-                items_to_delete.append(text)
+                items_to_delete.append(full_content)
                 
         if items_to_delete:
             deleted_any = False
             for full_content in items_to_delete:
                 if self.word_manager.clipboard_source and self.word_manager.clipboard_source.delete_entry(full_content):
                     deleted_any = True
-                if full_content in self.clipboard_timestamps:
-                    del self.clipboard_timestamps[full_content]
             
             if deleted_any:
                 log(f"已自动清除过期的剪贴板内容: {len(items_to_delete)} 条")
@@ -1262,12 +1346,15 @@ class MainController(QObject):
     def perform_restart(self):
         """执行重启操作"""
         log("执行重启...")
-        self.settings.save()
+        if not self._save_settings():
+            return
         self.popup.hide()
         self.hotkey_manager.stop()
         if self.shortcut_listener:
             self.shortcut_listener.stop()
         self.stop_file_observer()
+        if self.instance_manager:
+            self.instance_manager.release()
         QTimer.singleShot(100, self._restart_process)
 
     def _restore_services_after_failed_restart(self):
@@ -1278,8 +1365,7 @@ class MainController(QObject):
             if success:
                 self.settings.hotkey = normalized_hotkey
             else:
-                self.settings.hotkeys_enabled = False
-                self.settings.save()
+                self._update_settings(hotkeys_enabled=False, notify=False)
                 if hasattr(self, 'toggle_hotkeys_action'):
                     self.toggle_hotkeys_action.setChecked(False)
                 hotkey_restore_failed = error_message
@@ -1300,6 +1386,17 @@ class MainController(QObject):
                 f"重启派发失败后，当前实例的热键恢复也失败了：\n{hotkey_restore_failed}"
             )
 
+    def _restore_ownership_after_failed_restart(self):
+        """Return True only when this stopped instance safely becomes owner again."""
+        if not self.instance_manager:
+            return True
+        from core.single_instance import SingleInstanceManager
+        result = self.instance_manager.acquire()
+        if result == SingleInstanceManager.OWNER:
+            return True
+        log("重启派发失败后未能重新取得单实例所有权，当前实例将退出。")
+        return False
+
     def _restart_process(self):
         """实际的重启进程调用"""
         try:
@@ -1313,8 +1410,12 @@ class MainController(QObject):
             self.app.quit()
         except Exception as e:
             log(f"重启失败: {e}")
-            self._restore_services_after_failed_restart()
-            QMessageBox.critical(None, "错误", f"应用程序重启失败: {e}")
+            if self._restore_ownership_after_failed_restart():
+                self._restore_services_after_failed_restart()
+                QMessageBox.critical(None, "错误", f"应用程序重启失败: {e}")
+            else:
+                QMessageBox.critical(None, "错误", f"应用程序重启失败且所有权已移交：{e}")
+                self.app.quit()
 
     def update_auto_restart_timer(self):
         """更新自动重启定时器的状态"""
@@ -1329,8 +1430,10 @@ class MainController(QObject):
     @Slot()
     def toggle_auto_restart(self):
         """切换自动重启状态"""
-        self.settings.auto_restart_enabled = not self.settings.auto_restart_enabled
-        self.settings.save()
+        if not self._update_settings(auto_restart_enabled=not self.settings.auto_restart_enabled):
+            if hasattr(self, 'auto_restart_action'):
+                self.auto_restart_action.setChecked(self.settings.auto_restart_enabled)
+            return
         self.update_auto_restart_timer()
         if hasattr(self, 'auto_restart_action'):
             self.auto_restart_action.setChecked(self.settings.auto_restart_enabled)
@@ -1343,8 +1446,8 @@ class MainController(QObject):
                                                "请输入新的间隔分钟数 (0 表示禁用):",
                                                current_interval, 0, 1440, 1)
         if ok and new_interval != current_interval:
-            self.settings.auto_restart_interval = new_interval
-            self.settings.save()
+            if not self._update_settings(auto_restart_interval=new_interval):
+                return
             self.update_auto_restart_timer()
             QMessageBox.information(None, "成功", f"自动重启间隔已设置为 {new_interval} 分钟！")
 
@@ -1360,7 +1463,7 @@ class MainController(QObject):
 
     def open_help_docs(self):
         """打开项目主页与帮助"""
-        target_url = "https://github.com/msjsc001/QuickKV"
+        target_url = "https://github.com/EllisMorrow/QuickKV"
         try:
             webbrowser.open(target_url)
             log(f"已打开项目主页: {target_url}")
@@ -1377,9 +1480,7 @@ class MainController(QObject):
         if not os.path.isdir(AUTO_LOAD_DIR):
             if self.settings.auto_libraries:
                 log(f"自动加载目录不存在: {AUTO_LOAD_DIR}，清空配置。")
-                self.settings.auto_libraries = []
-                self.settings.save()
-                return True # 发生了变化
+                return self._update_settings(auto_libraries=[], notify=False)
             return False
 
         try:
@@ -1400,16 +1501,18 @@ class MainController(QObject):
         if not new_files and not removed_files:
             return False # 无变化
 
-        # 如果有变化，则进行处理
-        if new_files:
-            for path in new_files:
-                self.settings.auto_libraries.append({"path": path, "enabled": True, "kind": "file"})
-                log(f"发现并添加新自动词库: {os.path.basename(path)}")
-
-        if removed_files:
-            self.settings.auto_libraries = [lib for lib in self.settings.auto_libraries if lib['path'] not in removed_files]
-            for path in removed_files:
-                log(f"移除不存在的自动词库: {os.path.basename(path)}")
-        
-        self.settings.save()
-        return True # 确认发生了变化
+        auto_libraries = [
+            lib for lib in self.settings.auto_libraries
+            if lib['path'] not in removed_files
+        ]
+        auto_libraries.extend(
+            {"path": path, "enabled": True, "kind": "file"}
+            for path in new_files
+        )
+        if not self._update_settings(auto_libraries=auto_libraries, notify=False):
+            return False
+        for path in new_files:
+            log(f"发现并添加新自动词库: {os.path.basename(path)}")
+        for path in removed_files:
+            log(f"移除不存在的自动词库: {os.path.basename(path)}")
+        return True
