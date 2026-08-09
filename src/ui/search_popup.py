@@ -41,6 +41,7 @@ except ImportError:
 from core.config import *
 from ui.delegates import StyledItemDelegate
 from ui.components import EditDialog, ScrollableMessageBox
+from ui.library_target_menu import populate_library_target_menu
 
 
 # --- 搜索弹出窗口UI (滚动条修复) ---
@@ -414,16 +415,11 @@ class SearchPopup(QWidget):
         add_to_library_menu = QMenu("添加到词库", self)
 
         writable_targets = self.controller.get_writable_library_targets() if self.controller else []
-        if not writable_targets:
-            # 如果没有词库，则禁用此菜单项
-            no_library_action = QAction("无可用词库", self)
-            no_library_action.setEnabled(False)
-            add_to_library_menu.addAction(no_library_action)
-        else:
-            for target in writable_targets:
-                action = QAction(target['label'], self)
-                action.triggered.connect(lambda _, p=target['path']: self.add_from_search_box_to_specific_library(p))
-                add_to_library_menu.addAction(action)
+        populate_library_target_menu(
+            add_to_library_menu,
+            writable_targets,
+            self.add_from_search_box_to_specific_library,
+        )
         
         menu.addMenu(add_to_library_menu)
         
@@ -450,15 +446,13 @@ class SearchPopup(QWidget):
             # 剪贴板历史的右键菜单
             add_to_library_menu = QMenu("添加到词库", self)
             writable_targets = self.controller.get_writable_library_targets() if self.controller else []
-            if not writable_targets:
-                no_library_action = QAction("无可用词库", self)
-                no_library_action.setEnabled(False)
-                add_to_library_menu.addAction(no_library_action)
-            else:
-                for target in writable_targets:
-                    action = QAction(target['label'], self)
-                    action.triggered.connect(lambda checked=False, p=target['path'], i=item: self.controller.move_clipboard_item_to_library(i.text(), p))
-                    add_to_library_menu.addAction(action)
+            populate_library_target_menu(
+                add_to_library_menu,
+                writable_targets,
+                lambda target_path, i=item: self.controller.move_clipboard_item_to_library(
+                    i.text(), target_path
+                ),
+            )
             menu.addMenu(add_to_library_menu)
 
             edit_action = QAction("编辑", self)

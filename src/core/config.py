@@ -3,9 +3,7 @@ import sys
 import os
 import webbrowser
 import configparser
-import hashlib
 import json
-import subprocess
 import re
 import itertools
 import threading
@@ -40,53 +38,6 @@ except ImportError:
 
 from utils.paths import get_base_path, resource_path
 
-def get_device_id():
-    """
-    获取设备的唯一标识符，依次尝试:
-    1. 主板 UUID (wmic)
-    2. 系统盘卷序列号 (wmic)
-    3. MAC地址
-    """
-    identifier = None
-    try:
-        # 1. 尝试主板 UUID
-        uuid_output = subprocess.check_output("wmic csproduct get uuid", shell=True, text=True, stderr=subprocess.DEVNULL)
-        uuid = uuid_output.strip().split('\n')[-1].strip()
-        if uuid and "UUID" not in uuid and len(uuid) > 5:
-            identifier = uuid
-            log("使用主板 UUID 作为设备ID。")
-    except Exception as e:
-        log(f"获取主板 UUID 失败: {e}")
-
-    if not identifier:
-        try:
-            # 2. 尝试系统盘卷序列号
-            vol_serial_output = subprocess.check_output("wmic path win32_logicaldisk where \"DeviceID='%SystemDrive%'\" get VolumeSerialNumber", shell=True, text=True, stderr=subprocess.DEVNULL)
-            vol_serial = vol_serial_output.strip().split('\n')[-1].strip()
-            if vol_serial and "VolumeSerialNumber" not in vol_serial and len(vol_serial) > 2:
-                identifier = vol_serial
-                log("使用系统卷序列号作为设备ID。")
-        except Exception as e:
-            log(f"获取卷序列号失败: {e}")
-
-    if not identifier:
-        try:
-            # 3. 尝试 MAC 地址
-            # 需要导入 uuid 模块，请确保文件顶部有 import uuid
-            mac = ':'.join(__import__('re').findall('..', '%012x' % __import__('uuid').getnode()))
-            if mac and mac != "00:00:00:00:00:00":
-                identifier = mac
-                log("使用 MAC 地址作为设备ID。")
-        except Exception as e:
-            log(f"获取 MAC 地址失败: {e}")
-
-    if not identifier:
-        # 最终备用方案
-        identifier = "generic_fallback_id_all_failed"
-        log("所有设备ID获取方法均失败，使用最终备用ID。")
-
-    return hashlib.sha256(identifier.encode()).hexdigest()
-
 BASE_PATH = get_base_path()
 USER_DATA_DIR = os.path.join(BASE_PATH, "用户数据")
 AUTO_LOAD_DIR = os.path.join(BASE_PATH, "MD词库-需自动载入的请放入")
@@ -102,7 +53,8 @@ RANKING_STATE_FILE = os.path.join(USER_DATA_DIR, "ranking_state.json")
 ICON_PATH = resource_path("icon.png")
 
 DEBUG_MODE = True
-VERSION = "1.3.6" # 数据安全与可靠性修复
+VERSION = "1.3.7" # 词库菜单可读性、图标与声明优化
+DISCLAIMER_REVISION = "2"
 
 PASTE_MODE_CTRL_V = "ctrl_v"
 PASTE_MODE_CTRL_SHIFT_V = "ctrl_shift_v"
