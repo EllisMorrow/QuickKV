@@ -126,6 +126,7 @@ class WordManager:
         尝试从文件加载缓存。
         【已加固】确保在任何情况下（文件不存在、JSON损坏、权限问题）都能安全返回一个空字典。
         """
+        self._cache_load_succeeded = False
         if not os.path.exists(CACHE_FILE):
             log("缓存文件不存在，将跳过加载。")
             return {}
@@ -150,6 +151,7 @@ class WordManager:
                 return {}
 
             log("成功从文件加载缓存。")
+            self._cache_load_succeeded = True
             return files_data
 
         except json.JSONDecodeError as e:
@@ -358,6 +360,87 @@ class WordManager:
 
         return expanded_paths
 
+    def _get_disabled_cache_state(self, libraries):
+        """返回禁用词库缓存路径、词条 ID，以及缓存是否足以安全清理。"""
+        disabled_paths = set()
+        has_disabled_library = False
+        cache_complete = bool(getattr(self, '_cache_load_succeeded', False))
+
+        for lib in libraries:
+            if not isinstance(lib, dict):
+                continue
+            if lib.get('enabled', True):
+                continue
+            has_disabled_library = True
+
+            if lib.get('kind', 'file') == 'folder':
+                folder_path = lib.get('path')
+                if not folder_path:
+                    cache_complete = False
+                    continue
+                normalized_folder = normalize_library_path(folder_path)
+                for cached_path in self.cache:
+                    try:
+                        normalized_cached_path = normalize_library_path(cached_path)
+                        if os.path.commonpath([normalized_folder, normalized_cached_path]) == normalized_folder:
+                            disabled_paths.add(cached_path)
+                    except ValueError:
+                        # Windows 下不同盘符的路径不能比较 commonpath。
+                        continue
+
+                if not os.path.isdir(folder_path):
+                    cache_complete = False
+                    continue
+                folder_files, enumeration_succeeded = list_eligible_md_files_with_status(folder_path)
+                if not enumeration_succeeded:
+                    cache_complete = False
+                disabled_paths.update(
+                    normalize_library_path(path)
+                    for path in folder_files
+                )
+            else:
+                library_path = lib.get('path')
+                if library_path:
+                    disabled_paths.add(normalize_library_path(library_path))
+                else:
+                    cache_complete = False
+
+        entry_ids = set()
+        for cached_path in disabled_paths:
+            cached_file = self.cache.get(cached_path)
+            if not isinstance(cached_file, dict):
+                cache_complete = False
+                continue
+            cached_blocks = cached_file.get('data')
+            if not isinstance(cached_blocks, list):
+                cache_complete = False
+                continue
+
+            current_hash = self._get_file_hash(cached_path)
+            if current_hash is None or cached_file.get('hash') != current_hash:
+                cache_complete = False
+
+            for block in cached_blocks:
+                if not isinstance(block, dict):
+                    cache_complete = False
+                    continue
+                full_content = block.get('full_content')
+                if not block.get('entry_id') and not isinstance(full_content, str):
+                    cache_complete = False
+                    continue
+                entry_id = block.get('entry_id')
+                if not entry_id and self.ranking_state:
+                    entry_id = self.ranking_state.make_entry_id(
+                        block.get('source_path', cached_path),
+                        full_content,
+                    )
+                if entry_id:
+                    entry_ids.add(entry_id)
+
+        if not has_disabled_library:
+            cache_complete = True
+        return disabled_paths, entry_ids, cache_complete
+
     def reload_all(self):
         """通过缓存机制重新加载所有词库"""
         log("--- 开始重载所有词库 ---")
@@ -365,6 +448,14 @@ class WordManager:
 
         norm_to_original = self._expand_library_entries(self.settings.libraries)
         norm_to_original.update(self._expand_library_entries(self.settings.auto_libraries))
+        disabled_cached_paths = set()
+        disabled_entry_ids = set()
+        disabled_cache_complete = True
+        for libraries in (self.settings.libraries, self.settings.auto_libraries):
+            cached_paths, entry_ids, cache_complete = self._get_disabled_cache_state(libraries)
+            disabled_cached_paths.update(cached_paths)
+            disabled_entry_ids.update(entry_ids)
+            disabled_cache_complete = disabled_cache_complete and cache_complete
         unique_enabled_paths = set(norm_to_original.values())
         self.active_file_paths = set(norm_to_original.keys())
         self.sources = []
@@ -378,7 +469,11 @@ class WordManager:
 
             if cached_file and cached_file.get('hash') == current_hash:
                 log(f"缓存命中: {os.path.basename(original_path)}")
-                new_word_blocks.extend([self._preprocess_block(block) for block in cached_file['data']])
+                cached_blocks = cached_file['data']
+                for block_index, block in enumerate(cached_blocks):
+                    block['block_index'] = block_index
+                    block['source_revision'] = current_hash
+                new_word_blocks.extend([self._preprocess_block(block) for block in cached_blocks])
             else:
                 log(f"缓存未命中或已过期: {os.path.basename(original_path)}")
                 source = WordSource(original_path) # WordSource.load() is called here
@@ -386,14 +481,15 @@ class WordManager:
                 preprocessed_data = [self._preprocess_block(block) for block in source.word_blocks]
                 
                 self.cache[norm_path] = {
-                    "hash": current_hash,
+                    "hash": source.source_revision,
                     "data": preprocessed_data
                 }
                 new_word_blocks.extend(preprocessed_data)
                 cache_updated = True
 
-        # 移除缓存中不再启用的词库
-        paths_to_remove = set(self.cache.keys()) - set(norm_to_original.keys())
+        # 仅移除已从配置删除的词库缓存；禁用词库保留缓存以维护排序状态。
+        configured_cached_paths = set(norm_to_original.keys()) | disabled_cached_paths
+        paths_to_remove = set(self.cache.keys()) - configured_cached_paths
         if paths_to_remove:
             for path in paths_to_remove:
                 del self.cache[path]
@@ -408,7 +504,11 @@ class WordManager:
                 for block in self.word_blocks
                 if block.get('entry_id')
             }
-            self.ranking_state.cleanup_orphans(active_entry_ids)
+            active_entry_ids.update(disabled_entry_ids)
+            if disabled_cache_complete:
+                self.ranking_state.cleanup_orphans(active_entry_ids)
+            else:
+                log("禁用词库缓存不完整，本轮跳过排序状态孤儿清理。")
         
         if cache_updated:
             self._save_cache()
@@ -450,18 +550,18 @@ class WordManager:
         full_content_to_add = f"- {text}"
         # 避免重复添加
         if any(block['full_content'] == full_content_to_add for block in self.clipboard_source.word_blocks):
-            log(f"剪贴板历史中已存在: '{text}'")
+            log(f"剪贴板历史中已存在（SHA-256 前缀: {hashlib.sha256(full_content_to_add.encode('utf-8')).hexdigest()[:12]}）")
             return False
 
         # 限制历史数量
         while len(self.clipboard_source.word_blocks) >= self.settings.clipboard_memory_count:
             oldest_item = self.clipboard_source.word_blocks.pop(0) # 移除最旧的
             self.clipboard_source.delete_entry(oldest_item['full_content'])
-            log(f"剪贴板历史已满，移除最旧条目: {oldest_item['parent']}")
+            log("剪贴板历史已满，移除最旧条目。")
 
         # 添加新条目
         if self.clipboard_source.add_entry(full_content_to_add):
-            log(f"已添加新剪贴板历史: '{text}'")
+            log(f"已添加新剪贴板历史（UTF-8 字节数: {len(text.encode('utf-8'))}）。")
             # 重新加载以更新内部状态
             self.reload_all()
             return True

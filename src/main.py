@@ -45,7 +45,41 @@ from core.template_renderer import TemplateRenderer
 from core.word_manager import WordManager
 from main_controller import MainController
 from ui.components import DisclaimerDialog
-from PySide6.QtNetwork import QLocalServer, QLocalSocket
+from core.single_instance import SingleInstanceManager
+
+
+def ensure_current_disclaimer_accepted(settings_manager, current_device_id, version, dialog_factory=DisclaimerDialog):
+    """Return only after the required acceptance is durably recorded."""
+    accepted_info = settings_manager.accepted_disclaimer_info
+    if accepted_info.get('id') == current_device_id and accepted_info.get('version') == version:
+        return True
+
+    disclaimer_dialog = dialog_factory(
+        theme=THEMES.get(settings_manager.theme),
+        font_size=settings_manager.font_size,
+    )
+    if disclaimer_dialog.exec() != QDialog.Accepted:
+        log("用户未接受协议，程序退出。")
+        return False
+
+    previous_info = dict(accepted_info)
+    settings_manager.accepted_disclaimer_info = {
+        'id': current_device_id,
+        'version': version,
+    }
+    if settings_manager.save():
+        log(f"用户已接受版本 {version} 的协议。")
+        return True
+
+    settings_manager.accepted_disclaimer_info = previous_info
+    log("协议接受记录保存失败，程序退出。")
+    QMessageBox.critical(None, "保存失败", "无法保存协议接受记录，程序不会继续启动。")
+    return False
+
+
+def cleanup_after_startup_failure(controller):
+    """Release every controller-owned resource after startup cannot continue."""
+    controller.cleanup_and_exit()
 
 
 
@@ -57,6 +91,14 @@ if __name__ == "__main__":
     
     app = QApplication(sys.argv)
     app.setQuitOnLastWindowClosed(False)
+
+    # Own the IPC endpoint before opening any files under the shared data root.
+    instance_manager = SingleInstanceManager(USER_DATA_DIR)
+    instance_result = instance_manager.acquire()
+    if instance_result != SingleInstanceManager.OWNER:
+        if instance_result == SingleInstanceManager.UNAVAILABLE:
+            print("QuickKV 未能安全确认单实例所有权，已退出。")
+        sys.exit(0)
     
     # --- 确保应用目录结构存在 ---
     if not os.path.exists(USER_DATA_DIR):
@@ -89,26 +131,15 @@ if __name__ == "__main__":
         settings_manager,
         ranking_state_manager,
         template_renderer,
+        instance_manager=instance_manager,
     )
+    instance_manager.set_activation_handler(controller.activate_from_second_instance)
     
     # --- 首次启动与版本更新检查 ---
     current_device_id = get_device_id()
-    accepted_info = settings_manager.accepted_disclaimer_info
-
-    # 检查设备ID或软件版本是否不匹配
-    if accepted_info.get('id') != current_device_id or accepted_info.get('version') != VERSION:
-        disclaimer_dialog = DisclaimerDialog(theme=THEMES.get(settings_manager.theme), font_size=settings_manager.font_size)
-        if disclaimer_dialog.exec() == QDialog.Accepted:
-            # 用户同意后，同时记录当前设备ID和软件版本
-            settings_manager.accepted_disclaimer_info = {
-                'id': current_device_id,
-                'version': VERSION
-            }
-            settings_manager.save()
-            log(f"用户已接受版本 {VERSION} 的协议。")
-        else:
-            log("用户未接受协议，程序退出。")
-            sys.exit(0)
+    if not ensure_current_disclaimer_accepted(settings_manager, current_device_id, VERSION):
+        cleanup_after_startup_failure(controller)
+        sys.exit(0)
 
     tray_icon = QSystemTrayIcon(QIcon(ICON_PATH), app); tray_icon.setToolTip("QuickKV")
     

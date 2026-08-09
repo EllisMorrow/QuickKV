@@ -2,9 +2,9 @@
 <img width="1916" height="993" alt="PixPin_2025-07-28_13-36-22" src="https://github.com/user-attachments/assets/7f852744-81a3-4f0f-a050-7a5bb702c76c" />
 
 <p align="center">
-  <a href="https://github.com/msjsc001/QuickKV/releases/latest"><img src="https://img.shields.io/github/v/release/msjsc001/QuickKV"></a>
-  <a href="https://github.com/msjsc001/QuickKV/commits/master"><img src="https://img.shields.io/github/last-commit/msjsc001/QuickKV"></a>
-  <a href="https://github.com/msjsc001/QuickKV/releases"><img src="https://img.shields.io/github/downloads/msjsc001/QuickKV/total?label=Downloads&color=brightgreen"></a>
+  <a href="https://github.com/EllisMorrow/QuickKV/releases/latest"><img src="https://img.shields.io/github/v/release/EllisMorrow/QuickKV"></a>
+  <a href="https://github.com/EllisMorrow/QuickKV/commits/main"><img src="https://img.shields.io/github/last-commit/EllisMorrow/QuickKV"></a>
+  <a href="https://github.com/EllisMorrow/QuickKV/releases"><img src="https://img.shields.io/github/downloads/EllisMorrow/QuickKV/total?label=Downloads&color=brightgreen"></a>
 </p>
 
 **QuickKV是一款只专注于中文自动补全、文本拓展的开源、轻量级、高效、零门槛、易迁移、轻度剪贴板记忆、高可定制化、纯净无任何商业目的快捷输入增强工具**。它能让您将所有常用的文本片段（如邮箱、代码、模板、常用回复等）保存在一个或多个简单的 Markdown 文件词库中（多词库可灵活勾选使用），通过全局热键 `Ctrl+Space` 在任何应用程序中即时搜索并粘贴它们（支持拼音首字母，空格多词），极大地提升您的输入效率。
@@ -86,7 +86,7 @@
 
 **步骤一：安装依赖**
 
-如果使用exe程序在 https://github.com/msjsc001/QuickKV/releases 下载即可，无须使用 Python 配置，可跳过步骤一二三，exe程序会被杀软误杀加入白名单就能正常运行。
+如果使用exe程序在 https://github.com/EllisMorrow/QuickKV/releases 下载即可，无须使用 Python 配置，可跳过步骤一二三，exe程序会被杀软误杀加入白名单就能正常运行。
 
 本工具使用 Python 编写，需要您先安装 Python 环境（推荐 Python 3.8+）。然后，在终端中运行以下命令安装所需库：
 
@@ -338,7 +338,7 @@ V0.5-0.9版图解演示
 **在下载、安装或以任何方式使用本软件 (QuickKV) 与代码前，请您务必仔细阅读并充分理解以下所有条款。本软件是基于 MIT 许可证 (MIT License) 发布的免费开源项目。一旦您开始使用本软件的任何部分（包括但不限于运行程序、查阅代码、修改或分发），即表示您已完全阅读、理解并无条件接受本声明及 MIT 许可证的全部内容。如果您不同意其中任何条款，请立即停止使用并彻底删除本软件的所有相关文件。**
 
 **1. “按原样”提供，不作任何保证 (AS-IS, WITHOUT ANY WARRANTY)**
-本软件按“原样”(AS IS) 提供，不附带任何形式的明示或暗示的保证，包括但不限于对软件的**商业适用性 (MERCHANTABILITY)**、**特定用途适用性 (FITNESS FOR A PARTICULAR PURPOSE)** 和 **非侵权性 (NON-INFRINGEMENT)** 的保证。作者不保证软件能满足您的所有需求，不保证软件运行不会中断或不出现任何错误，也不保证软件中的任何缺陷 (Bug) 都将被修正。所有条款以软件附带的 [MIT 许可证](https://github.com/msjsc001/QuickKV/blob/main/LICENSE) 原文为准。    
+本软件按“原样”(AS IS) 提供，不附带任何形式的明示或暗示的保证，包括但不限于对软件的**商业适用性 (MERCHANTABILITY)**、**特定用途适用性 (FITNESS FOR A PARTICULAR PURPOSE)** 和 **非侵权性 (NON-INFRINGEMENT)** 的保证。作者不保证软件能满足您的所有需求，不保证软件运行不会中断或不出现任何错误，也不保证软件中的任何缺陷 (Bug) 都将被修正。所有条款以软件附带的 [MIT 许可证](https://github.com/EllisMorrow/QuickKV/blob/main/LICENSE) 原文为准。
 
 **2. 核心功能与潜在风险告知 (CORE FUNCTIONALITY & POTENTIAL RISKS)**
 本软件的核心功能必然涉及**全局键盘监听** (用于实现快捷码、快捷键功能) 和**剪贴板内容读写** (用于粘贴及历史记忆功能)。您必须清楚地认识到这些功能存在的潜在风险：
@@ -359,7 +359,7 @@ V0.5-0.9版图解演示
 本软件是一个开源项目，所有源代码均在 GitHub 公开。我们鼓励并建议有能力的用户在安装使用前，**自行审查代码**，以确保其安全性和功能符合您的预期。作者保证其发布的官方版本不包含任何已知的恶意代码，但无法保证软件绝对没有缺陷。
 
 **7. 官方渠道与安全下载 (OFFICIAL CHANNEL & SECURE DOWNLOAD)**
-本项目的唯一官方发布渠道为 GitHub Releases 页面 (`https://github.com/msjsc001/QuickKV/releases`)。作者不对任何从第三方网站、论坛、社群、个人分享等非官方渠道获取的软件副本的安全性、完整性或一致性作任何保证。为避免潜在的恶意代码注入或版本篡改风险，请务必通过官方渠道下载。
+本项目的唯一官方发布渠道为 GitHub Releases 页面 (`https://github.com/EllisMorrow/QuickKV/releases`)。作者不对任何从第三方网站、论坛、社群、个人分享等非官方渠道获取的软件副本的安全性、完整性或一致性作任何保证。为避免潜在的恶意代码注入或版本篡改风险，请务必通过官方渠道下载。
 
 **8. 无专业支持义务 (NO OBLIGATION FOR SUPPORT)**
 本软件为免费提供，作者没有义务提供任何形式的商业级技术支持、更新、用户培训或后续服务。作者可能会通过 GitHub Issues 等社区渠道提供帮助，但这完全出于自愿且不作任何承诺，作者保留随时忽略或关闭任何问题的权利。
