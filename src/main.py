@@ -228,6 +228,9 @@ if __name__ == "__main__":
     auto_library_menu = QMenu("自动载入的md词库")
     controller.auto_library_menu = auto_library_menu
     menu.addMenu(auto_library_menu) # 直接添加到主菜单
+    transcription_action = QAction("转写功能", menu)
+    transcription_action.triggered.connect(controller.show_transcription_settings)
+    menu.addAction(transcription_action)
     
     # --- 设置 ---
     menu.addSeparator()

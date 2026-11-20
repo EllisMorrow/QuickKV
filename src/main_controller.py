@@ -44,6 +44,7 @@ import builtins
 # Dependency Injection
 from core.config import *
 from core.clipboard_timestamps import ClipboardTimestampStore, content_key, utf8_size_at_most
+from core.transcription import transcribe, TranscriptionError
 from core.template_renderer import TemplateRenderer, TemplateRenderError
 from ui.search_popup import SearchPopup
 from ui.components import HotkeyDialog, DisclaimerDialog, ScrollableMessageBox, get_disclaimer_html_text, EditDialog, TemplateInputDialog
@@ -498,6 +499,12 @@ class MainController(QObject):
             return
 
         content_to_paste = rendered_content
+        if getattr(self.settings, 'transcription_enabled', True):
+            try:
+                content_to_paste = transcribe(content_to_paste, getattr(self.settings, 'transcription_rules', ''))
+            except TranscriptionError as error:
+                QMessageBox.warning(self.popup, "转写规则错误", f"{error}\n请在转写功能中修正规则，本次输出已取消。")
+                return
         self.record_entry_usage(found_block)
 
         self.ignore_next_clipboard_change = True
@@ -589,6 +596,15 @@ class MainController(QObject):
         log(f"{state_text}: {block.get('parent', '')}")
         if self.popup.isVisible():
             self.popup.update_list(self.popup.search_box.text())
+
+    def show_transcription_settings(self):
+        from ui.transcription_dialog import TranscriptionDialog
+        dialog = TranscriptionDialog(
+            self.popup, self.settings, THEMES[self.settings.theme],
+            lambda enabled, rules: self._update_settings(
+                transcription_enabled=enabled, transcription_rules=rules),
+        )
+        dialog.exec()
 
     def render_template_output(self, content_to_paste):
         """在最终输出前执行中文模板渲染。"""

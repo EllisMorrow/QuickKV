@@ -125,6 +125,8 @@ class SettingsManager:
         self.auto_restart_interval = self._getint('Restart', 'interval_minutes', self.auto_restart_interval)
         self.accepted_disclaimer_info = self._get_json('General', 'accepted_disclaimer_info', self.accepted_disclaimer_info, dict)
         self.libraries = self._get_json('General', 'libraries', self.libraries, list)
+        self.transcription_enabled = self._getboolean('General', 'transcription_enabled', True)
+        self.transcription_rules = self._get_json('General', 'transcription_rules', '', str)
         self.auto_libraries = self._get_json('General', 'auto_libraries', self.auto_libraries, list)
 
         # 迁移和验证逻辑保持不变
@@ -160,6 +162,8 @@ class SettingsManager:
         self.accepted_disclaimer_info = {'revision': ''}
         self.libraries = []
         self.auto_libraries = []
+        self.transcription_enabled = True
+        self.transcription_rules = ""
 
     def _ensure_sections(self, config=None):
         config = self.config if config is None else config
@@ -197,6 +201,8 @@ class SettingsManager:
         self._ensure_sections(candidate)
         candidate['General']['hotkeys_enabled'] = str(self.hotkeys_enabled)
         candidate['General']['shortcut_code_enabled'] = str(self.shortcut_code_enabled) # 新增：保存快捷码功能开关
+        candidate['General']['transcription_enabled'] = str(self.transcription_enabled)
+        candidate['General']['transcription_rules'] = json.dumps(self.transcription_rules, ensure_ascii=False).replace('%', '%%')
         candidate['General']['hotkey'] = self.hotkey
         candidate['Window']['width'] = str(self.width)
         candidate['Window']['height'] = str(self.height)

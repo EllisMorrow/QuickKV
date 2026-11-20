@@ -96,6 +96,17 @@ class SettingsReliabilityTests(unittest.TestCase):
     def settings_for(self, path):
         return self.settings_module.SettingsManager(str(path))
 
+    def test_transcription_roundtrip_including_percent_and_newlines(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'config.ini'
+            settings = self.settings_for(path)
+            settings.transcription_rules = '\n'.join(['"%" => "百分比"', '"a" => "b"'])
+            settings.transcription_enabled = False
+            self.assertTrue(settings.save())
+            loaded = self.settings_for(path)
+            self.assertEqual(settings.transcription_rules, loaded.transcription_rules)
+            self.assertFalse(loaded.transcription_enabled)
+
     def test_invalid_number_and_boolean_only_use_their_defaults(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             config_path = Path(temp_dir) / "config.ini"

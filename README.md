@@ -176,6 +176,25 @@ pip install -r requirements.txt
     *   你经常真正选中并输出的词条，在相近结果里也会更顺手地往前一点。
     *   只是浏览、悬停、来回移动焦点，不会被当成“最近使用”。
 
+### 转写功能
+托盘菜单中，“自动载入的md词库”下方的“转写功能”可设置最终输出替换规则。每行一条，左右均使用英文双引号：
+
+```text
+# 标点和词组转换
+"，" => ","
+"您好" => "你好"
+# 删除指定内容
+"不需要的字符" => ""
+# 将字面标记转为换行
+"[换行]" => "\n"
+```
+
+支持 JSON 字符串转义（`\n`、`\t`、`\"`、`\\`）；空行和以 `#` 开头的整行注释忽略。识别内容不可为空或重复。按原文从左到右匹配、区分大小写，同位置长词优先，替换结果不再次匹配，不使用正则表达式。
+
+窗口提供实时预览、错误行提示与启用开关。点击“应用”成功保存后立即生效，无需重启；删除规则后应用即失效，清空规则后应用即取消全部转写。关闭未应用的窗口时可选择保存或放弃。保存失败会保留原来的有效设置。
+
+转写在模板展开后执行，覆盖搜索选词、快捷码及剪贴板历史条目的输出；不会改写 Markdown 词库、搜索内容或历史记录原文。设置窗口的测试文本不会写入剪贴板或发送。
+
 **6. 中文模板变量**
 如果你希望一条词不是每次都输出完全一样的内容，而是能自动带上当天日期、当前剪贴板内容，或者在输出前临时让你填几个字段，就可以用中文模板变量。
 
@@ -325,7 +344,16 @@ V0.5-0.9版图解演示
 2.  **执行打包命令**:
     在项目根目录下使用项目的 spec 构建，并把 MIT 许可证放到发布目录根部：
     ```powershell
-    .\venv\Scripts\python.exe -m PyInstaller --noconfirm --clean QuickKV.spec
+    $pythonBase = .\venv\Scripts\python.exe -c "import sys; print(sys.base_prefix)"
+    $originalPath = $env:Path
+    try {
+        # 避免 PyInstaller 从其他应用的 PATH 目录收录同名 DLL。
+        $env:Path = "$(Resolve-Path .\venv\Scripts);$pythonBase;$pythonBase\DLLs;$env:SystemRoot\System32;$env:SystemRoot"
+        .\venv\Scripts\python.exe -m PyInstaller --noconfirm --clean QuickKV.spec
+        if ($LASTEXITCODE -ne 0) { throw "QuickKV 打包失败" }
+    } finally {
+        $env:Path = $originalPath
+    }
     Copy-Item LICENSE dist\QuickKV\LICENSE
     ```
     *   `QuickKV.spec` 统一管理无控制台模式、Windows EXE 图标和运行时托盘图标。

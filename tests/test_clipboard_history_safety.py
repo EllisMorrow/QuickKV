@@ -137,6 +137,10 @@ class ClipboardCaptureSafetyTests(unittest.TestCase):
             _find_block_by_full_content=lambda text: clipboard_block,
             _build_output_content=lambda text, block: block["parent"],
             render_template_output=lambda text: text,
+            settings=types.SimpleNamespace(
+                transcription_enabled=True,
+                transcription_rules='"clipboard-secret-do-not-log" => "converted"',
+            ),
             record_entry_usage=lambda block: None,
             ignore_next_clipboard_change=False,
             last_popup_target_hwnd=0,
@@ -148,8 +152,9 @@ class ClipboardCaptureSafetyTests(unittest.TestCase):
             "copy",
             return_value=None,
             create=True,
-        ):
+        ) as copy_text:
             module.MainController.on_suggestion_selected(controller, secret)
+        copy_text.assert_called_once_with("converted")
 
         self.assertTrue(any("source=clipboard" in message for message in logs))
         self.assertTrue(all(secret not in message for message in logs))
