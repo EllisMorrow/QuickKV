@@ -176,6 +176,7 @@ class NativeHotkeyManager(QObject):
         
         # 字符串触发控制
         self.keyboard_listener = None
+        self.suppress_string_trigger = None
         self.string_trigger_enabled = False
         self.string_trigger_str = ""
         self.trigger_queue = None
@@ -305,6 +306,10 @@ class NativeHotkeyManager(QObject):
             
             def on_press(key):
                 try:
+                    if self.suppress_string_trigger and self.suppress_string_trigger():
+                        self.trigger_queue.clear()
+                        return
+
                     # 获取输入的字符
                     if hasattr(key, 'char') and key.char is not None:
                         char = key.char
@@ -317,6 +322,9 @@ class NativeHotkeyManager(QObject):
                     current_str = "".join(self.trigger_queue)
                     
                     if current_str == self.string_trigger_str:
+                        if self.suppress_string_trigger and self.suppress_string_trigger():
+                            self.trigger_queue.clear()
+                            return
                         log(f"命中连续字符序列: {self.string_trigger_str}")
                         self.trigger_queue.clear()
                         

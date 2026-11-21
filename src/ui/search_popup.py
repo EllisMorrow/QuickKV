@@ -41,6 +41,7 @@ except ImportError:
 from core.config import *
 from ui.delegates import StyledItemDelegate
 from ui.components import EditDialog, ScrollableMessageBox
+from ui.continuous_editor import ContinuousEditor
 from ui.library_target_menu import populate_library_target_menu
 
 
@@ -59,6 +60,9 @@ class SearchPopup(QWidget):
         self.resize_edge = {"top": False, "bottom": False, "left": False, "right": False}
         self.resize_start_pos = None
         self.resize_start_geom = None
+        self.continuous_input_visible = False
+        self.continuous_size = None
+        self.search_size = None
 
         self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool)
         self.setAttribute(Qt.WA_TranslucentBackground) # 重新禁用透明属性
@@ -83,6 +87,12 @@ class SearchPopup(QWidget):
         title_bar_layout.addWidget(self.title_label)
         
         title_bar_layout.addStretch()
+
+        self.mode_button = QPushButton("连续联想")
+        self.mode_button.setCheckable(True)
+        self.mode_button.setToolTip("切换快捷搜索和连续联想")
+        self.mode_button.toggled.connect(self._switch_mode)
+        title_bar_layout.addWidget(self.mode_button)
         
         self.close_button = QPushButton("✕")
         self.close_button.setFixedSize(24, 24)
@@ -98,6 +108,18 @@ class SearchPopup(QWidget):
         container_layout.addLayout(title_bar_layout)
         container_layout.addWidget(self.search_box)
         container_layout.addWidget(self.list_widget, 1)
+        self.continuous_editor = ContinuousEditor(word_manager, settings_manager, self.container)
+        self.continuous_editor.escape_requested.connect(self.hide)
+        self.continuous_editor.results.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.continuous_editor.results.customContextMenuRequested.connect(
+            lambda pos: self.show_list_widget_context_menu(pos, self.continuous_editor.results)
+        )
+        self.continuous_editor.lookup.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.continuous_editor.lookup.customContextMenuRequested.connect(
+            lambda pos: self.show_search_box_context_menu(pos, self.continuous_editor.lookup)
+        )
+        container_layout.addWidget(self.continuous_editor, 1)
+        self.continuous_editor.hide()
 
         # 添加 QSizeGrip 用于右下角缩放
         self.size_grip = QSizeGrip(self)
@@ -134,7 +156,7 @@ class SearchPopup(QWidget):
         # 无边框窗口中，QLineEdit/QListWidget等交互控件会抢占鼠标事件，
         # 导致窗口边缘的缩放逻辑无法被触发。通过事件过滤器拦截边缘区域的鼠标事件来解决。
         for w in [self.container, self.search_box, self.list_widget,
-                  self.list_widget.viewport(), self.title_label, self.close_button]:
+                  self.list_widget.viewport(), self.title_label, self.mode_button, self.close_button]:
             w.installEventFilter(self)
 
     @Slot()
@@ -294,15 +316,64 @@ class SearchPopup(QWidget):
 
 
     def showEvent(self, event):
+        self.continuous_input_visible = self.is_continuous_mode()
         super().showEvent(event)
 
     def hideEvent(self, event):
+        self.continuous_input_visible = False
+        if self.is_continuous_mode():
+            self.continuous_size = self.size()
+            self.continuous_editor.dismiss_candidates()
+            super().hideEvent(event)
+            return
+        self._save_search_size()
+        super().hideEvent(event)
+
+    def _save_search_size(self):
         previous_width, previous_height = self.settings.width, self.settings.height
         self.settings.width, self.settings.height = self.width(), self.height()
         if not self.settings.save():
             self.settings.width, self.settings.height = previous_width, previous_height
             log("窗口尺寸保存失败，已保留上次的配置尺寸。")
-        super().hideEvent(event)
+
+    def is_continuous_mode(self):
+        return self.mode_button.isChecked()
+
+    def _switch_mode(self, enabled):
+        if enabled:
+            self.search_size = self.size()
+            self._save_search_size()
+        else:
+            self.continuous_size = self.size()
+            self.continuous_editor.dismiss_candidates()
+        self.continuous_input_visible = enabled and self.isVisible()
+        self.search_debounce_timer.stop()
+        self.search_box.setVisible(not enabled)
+        self.list_widget.setVisible(not enabled)
+        self.continuous_editor.setVisible(enabled)
+        if enabled:
+            self.setMinimumSize(360, 235)
+            if self.continuous_size is not None:
+                self.resize(self.continuous_size)
+            else:
+                self.resize(max(500, self.width()), max(320, self.height()))
+            screen = QApplication.screenAt(self.frameGeometry().center()) or QApplication.primaryScreen()
+            if screen is not None:
+                area = screen.availableGeometry()
+                self.move(
+                    max(area.left(), min(self.x(), area.right() - self.width() + 1)),
+                    max(area.top(), min(self.y(), area.bottom() - self.height() + 1)),
+                )
+            self.continuous_editor.focus_editor()
+        else:
+            self.setMinimumSize(250, 150)
+            self.resize(self.search_size)
+            self.search_box.setFocus()
+            self.update_list(self.search_box.text())
+
+    def resume_continuous_after_paste_failure(self):
+        if self.is_continuous_mode() and not self.isVisible():
+            self.reappear_in_place()
 
     def apply_theme(self):
         theme = THEMES[self.settings.theme]
@@ -329,6 +400,13 @@ class SearchPopup(QWidget):
             }}
         """)
         self.close_button.setStyleSheet(f"QPushButton {{ background-color: transparent; color: {theme['text_color']}; border: none; font-size: 16px; font-weight: bold; }} QPushButton:hover {{ color: white; background-color: #E81123; border-radius: 4px; }}")
+        self.mode_button.setStyleSheet(
+            f"QPushButton {{ color: {theme['text_color']}; background: transparent; border: 1px solid transparent;"
+            f" border-radius: 4px; padding: 2px 6px; font-size: {font_size - 2}px; }}"
+            f" QPushButton:hover, QPushButton:focus {{ border-color: {theme['border_color']}; }}"
+            f" QPushButton:checked {{ background: {theme['item_selected_bg']}; }}"
+        )
+        self.continuous_editor.apply_theme()
         # self._update_pin_button_style() # 应用主题时更新图钉按钮样式
         self.list_widget.viewport().update() # 强制列表刷新以应用新主题
 
@@ -342,6 +420,9 @@ class SearchPopup(QWidget):
         #     log("下方空间不足，窗口向上翻转。"); pos_y = cursor_pos.y() - window_size.height() - 15
         if pos_x + window_size.width() > screen_geom.x() + screen_geom.width():
             pos_x = screen_geom.x() + screen_geom.width() - window_size.width()
+        if self.is_continuous_mode():
+            pos_x = max(screen_geom.left(), pos_x)
+            pos_y = max(screen_geom.top(), min(pos_y, screen_geom.bottom() - window_size.height() + 1))
         self.move(pos_x, pos_y)
         self.reappear_in_place()
 
@@ -349,6 +430,9 @@ class SearchPopup(QWidget):
         """在原位重新显示窗口，并抢夺焦点"""
         self.show()
         self.activateWindow()
+        if self.is_continuous_mode():
+            self.continuous_editor.focus_editor()
+            return
         self.search_box.setFocus()
         self.search_box.clear()
         self.update_list("")
@@ -357,15 +441,9 @@ class SearchPopup(QWidget):
     def gentle_reappear(self):
         """温柔地重新显示窗口，但不抢夺焦点"""
         log("执行温柔的窗口返回...")
-        self.search_box.clear()
-        self.update_list("")
-        self.show() # 只显示，不激活，不设置焦点
-
-    def gentle_reappear(self):
-        """温柔地重新显示窗口，但不抢夺焦点"""
-        log("执行温柔的窗口返回...")
-        self.search_box.clear()
-        self.update_list("")
+        if not self.is_continuous_mode():
+            self.search_box.clear()
+            self.update_list("")
         self.show() # 只显示，不激活，不设置焦点
     
     @Slot()
@@ -375,6 +453,11 @@ class SearchPopup(QWidget):
 
     @Slot(str)
     def update_list(self, text):
+        if self.is_continuous_mode():
+            if self.isVisible():
+                self.continuous_editor.refresh_candidates()
+            return
+
         # 根据设置动态调整横向滚动条状态
         if self.settings.word_wrap_enabled:
             self.list_widget.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
@@ -408,7 +491,10 @@ class SearchPopup(QWidget):
         elif key == Qt.Key_Up and self.list_widget.hasFocus() and self.list_widget.currentRow() == 0: self.search_box.setFocus()
         else: super().keyPressEvent(event)
 
-    def show_search_box_context_menu(self, pos):
+    def show_search_box_context_menu(self, pos, search_box=None):
+        if not self.controller:
+            return
+        search_box = self.search_box if search_box is None else search_box
         menu = QMenu(self)
         
         # 创建“添加到词库”子菜单
@@ -418,7 +504,7 @@ class SearchPopup(QWidget):
         populate_library_target_menu(
             add_to_library_menu,
             writable_targets,
-            self.add_from_search_box_to_specific_library,
+            lambda target_path: self.add_from_search_box_to_specific_library(target_path, search_box),
         )
         
         menu.addMenu(add_to_library_menu)
@@ -426,15 +512,19 @@ class SearchPopup(QWidget):
         # 应用主题
         self.controller.apply_menu_theme(menu)
 
-        menu.exec(self.search_box.mapToGlobal(pos))
+        menu.exec(search_box.mapToGlobal(pos))
+        menu.deleteLater()
 
-    def add_from_search_box_to_specific_library(self, target_path):
-        text = self.search_box.text()
+    def add_from_search_box_to_specific_library(self, target_path, search_box=None):
+        text = (self.search_box if search_box is None else search_box).text()
         if text:
             self.controller.add_entry(text, target_path)
 
-    def show_list_widget_context_menu(self, pos):
-        item = self.list_widget.itemAt(pos)
+    def show_list_widget_context_menu(self, pos, results=None):
+        if not self.controller:
+            return
+        results = self.list_widget if results is None else results
+        item = results.itemAt(pos)
         if not item: return
         
         selected_block = item.data(Qt.UserRole)
@@ -449,19 +539,12 @@ class SearchPopup(QWidget):
             populate_library_target_menu(
                 add_to_library_menu,
                 writable_targets,
-                lambda target_path, i=item: self.controller.move_clipboard_item_to_library(
-                    i.text(), target_path
+                lambda target_path: self.controller.move_clipboard_item_to_library(
+                    selected_block['full_content'], target_path
                 ),
             )
             menu.addMenu(add_to_library_menu)
 
-            edit_action = QAction("编辑", self)
-            edit_action.triggered.connect(lambda checked=False, i=item: self.edit_item(i))
-            menu.addAction(edit_action)
-
-            delete_action = QAction("删除", self)
-            delete_action.triggered.connect(lambda checked=False, i=item: self.delete_item(i))
-            menu.addAction(delete_action)
         else:
             # 普通词库的右键菜单
             favorite_action = QAction("取消收藏" if selected_block.get('is_favorite') else "收藏", self)
@@ -470,18 +553,19 @@ class SearchPopup(QWidget):
 
             menu.addSeparator()
 
-            edit_action = QAction("编辑", self)
-            edit_action.triggered.connect(lambda checked=False, i=item: self.edit_item(i))
-            menu.addAction(edit_action)
+        edit_action = QAction("编辑", menu)
+        edit_action.triggered.connect(lambda: self.controller.edit_entry(selected_block))
+        menu.addAction(edit_action)
 
-            delete_action = QAction("删除", self)
-            delete_action.triggered.connect(lambda checked=False, i=item: self.delete_item(i))
-            menu.addAction(delete_action)
+        delete_action = QAction("删除", menu)
+        delete_action.triggered.connect(lambda: self.controller.delete_entry(selected_block))
+        menu.addAction(delete_action)
         
         # 应用主题
         self.controller.apply_menu_theme(menu)
              
-        menu.exec(self.list_widget.mapToGlobal(pos))
+        menu.exec(results.viewport().mapToGlobal(pos))
+        menu.deleteLater()
 
     def add_from_search_box(self):
         text = self.search_box.text()

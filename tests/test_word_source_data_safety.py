@@ -84,6 +84,7 @@ def _load_search_popup_module():
     qt_core.Slot = lambda *args, **kwargs: lambda function: function
     _module("ui.delegates", StyledItemDelegate=_Dummy)
     _module("ui.components", EditDialog=_Dummy, ScrollableMessageBox=_Dummy)
+    _module("ui.continuous_editor", ContinuousEditor=_Dummy)
 
     sys.modules.pop("ui.search_popup", None)
     return importlib.import_module("ui.search_popup")

@@ -509,7 +509,7 @@ def get_disclaimer_html_text():
     <p>本软件按“原样”(AS IS) 提供，不附带任何形式的明示或暗示的保证，包括但不限于对软件的<strong>商业适用性 (MERCHANTABILITY)</strong>、<strong>特定用途适用性 (FITNESS FOR A PARTICULAR PURPOSE)</strong> 和 <strong>非侵权性 (NON-INFRINGEMENT)</strong> 的保证。作者不保证软件能满足您的所有需求，不保证软件运行不会中断或不出现任何错误，也不保证软件中的任何缺陷 (Bug) 都将被修正。所有条款以软件附带的 <a href="https://github.com/EllisMorrow/QuickKV/blob/main/LICENSE">MIT 许可证</a> 原文为准。</p>
     
     <h3>2. 核心功能与潜在风险告知 (CORE FUNCTIONALITY & POTENTIAL RISKS)</h3>
-    <p>默认 <strong>Ctrl+Space</strong> 通过 Windows 原生全局热键注册，仅响应设定的组合键；<strong>快捷码</strong>与<strong>连续字符串盲打触发</strong>属于可选功能，只有在您主动启用后才会在后台接收全局按键事件。软件会使用系统剪贴板完成词条复制与粘贴。</p>
+    <p>默认 <strong>Ctrl+Space</strong> 通过 Windows 原生全局热键注册，仅响应设定的组合键；<strong>快捷码</strong>默认开启，确认此声明后才开始接收全局按键事件，可随时从托盘关闭。<strong>连续字符串盲打触发</strong>默认关闭，仅在主动启用后监听。软件会使用系统剪贴板完成词条复制与粘贴。</p>
     <ul>
         <li><strong>按键监听边界</strong>: 启用快捷码或连续字符串触发后，程序需要接收全局按键事件以识别触发内容。请仅在您理解并接受该行为时启用。</li>
         <li><strong>剪贴板隐私风险</strong>: 剪贴板历史默认关闭。开启后，复制的文本会以<strong>明文</strong>保存到本机的 <code>MD词库-需自动载入的请放入/剪贴板词库-勿删.md</code>；密码、验证码、银行卡号、身份证或私密对话等敏感文本可能因此被保留。</li>
@@ -552,7 +552,7 @@ class DisclaimerDialog(QDialog):
         # 1. 醒目提示
         intro_label = QLabel(
             "<b>欢迎使用 QuickKV！关键说明：</b><br>"
-            "默认 Ctrl+Space 只注册组合键；快捷码与连续字符串监听需主动开启；"
+            "默认 Ctrl+Space 只注册组合键；快捷码默认开启，确认声明后开始监听，可从托盘关闭；连续字符串监听默认关闭；"
             "剪贴板历史默认关闭，开启后会在本机明文保存；软件不会主动上传数据。"
         )
         intro_label.setWordWrap(True)

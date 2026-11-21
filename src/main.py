@@ -138,6 +138,9 @@ if __name__ == "__main__":
         cleanup_after_startup_failure(controller)
         sys.exit(0)
 
+    if settings_manager.shortcut_code_enabled:
+        controller.shortcut_listener.start()
+
     tray_icon = QSystemTrayIcon(QIcon(ICON_PATH), app); tray_icon.setToolTip("QuickKV")
     
     # 点击托盘图标触发主界面
@@ -188,7 +191,7 @@ if __name__ == "__main__":
     restart_menu.addAction(set_restart_interval_action)
     restart_menu.addSeparator()
     restart_now_action = QAction("立即重启")
-    restart_now_action.triggered.connect(controller.perform_restart)
+    restart_now_action.triggered.connect(controller.request_restart)
     restart_menu.addAction(restart_now_action)
     
     menu.addMenu(restart_menu)
@@ -301,13 +304,16 @@ if __name__ == "__main__":
 
     # --- 退出 ---
     menu.addSeparator()
-    quit_action = QAction("退出(&Q)"); quit_action.triggered.connect(app.quit); menu.addAction(quit_action)
+    quit_action = QAction("退出(&Q)")
+    quit_action.triggered.connect(lambda: app.quit() if controller.confirm_exit() else None)
+    menu.addAction(quit_action)
 
     controller.apply_menu_theme() # 初始化时应用主题
     controller.rebuild_library_menu() # 首次构建手动词库菜单
-    controller.scan_and_update_auto_libraries() # 首次扫描以同步自动词库列表
-    controller.rebuild_auto_library_menu()      # 首次强制构建菜单UI
-    controller.rebuild_auto_library_menu()      # 基于扫描结果，首次强制构建自动词库菜单UI
+    if controller.scan_and_update_auto_libraries():
+        controller.perform_full_reload()
+    else:
+        controller.rebuild_auto_library_menu()
     tray_icon.setContextMenu(menu); tray_icon.show()
     
     log("程序启动成功，正在后台运行。")

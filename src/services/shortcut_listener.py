@@ -106,6 +106,7 @@ class ShortcutListener(QObject):
         self.sorted_codes = []
         self.idle_reset_seconds = 1.0
         self.last_input_monotonic = 0.0
+        self.suppress_shortcuts = None
 
     def update_shortcuts(self):
         """从词库更新快捷码映射"""
@@ -166,6 +167,11 @@ class ShortcutListener(QObject):
         try:
             if not self._running:
                 return False # 停止监听
+
+            if self.suppress_shortcuts and self.suppress_shortcuts():
+                self.typed_buffer = ""
+                self.last_input_monotonic = 0.0
+                return
 
             now = time.monotonic()
             if self.last_input_monotonic and now - self.last_input_monotonic > self.idle_reset_seconds:

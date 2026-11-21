@@ -6,6 +6,7 @@ import configparser
 import hashlib
 import json
 import subprocess
+import base64
 import re
 import itertools
 import threading
@@ -129,8 +130,24 @@ class MainController(QObject):
         self.show_popup_signal.connect(self.popup.show_and_focus)
         self.hide_popup_signal.connect(self.popup.hide)
         self.popup.suggestion_selected.connect(self.on_suggestion_selected)
+        self.popup.continuous_editor.expand_entry = self.expand_continuous_entry
+        self.popup.continuous_editor.entry_inserted.connect(self.record_entry_usage)
+        self.popup.continuous_editor.submit_requested.connect(self.submit_continuous_draft)
+        self.popup.continuous_editor.copy_requested.connect(self.copy_continuous_draft)
+
+        self.user32 = ctypes.windll.user32
+        self.user32.GetForegroundWindow.restype = wintypes.HWND
+        self.quickkv_pid = os.getpid()
+        self.last_popup_target_hwnd = 0
+        self.continuous_target = (0, 0)
+        self.continuous_request = None
+        self.continuous_process = None
+        self.continuous_paste_timer = QTimer(self)
+        self.continuous_paste_timer.setInterval(20)
+        self.continuous_paste_timer.timeout.connect(self._poll_continuous_paste)
         
         self.hotkey_manager = NativeHotkeyManager(self.settings.hotkey)
+        self.hotkey_manager.suppress_string_trigger = self.is_continuous_foreground
         self.hotkey_manager.hotkey_triggered.connect(self.on_hotkey_triggered)
         self.hotkey_manager.hotkey_registration_failed.connect(self.on_hotkey_registration_failed)
         if self.settings.hotkeys_enabled:
@@ -144,9 +161,9 @@ class MainController(QObject):
 
         # 新增：初始化快捷码监听器
         self.shortcut_listener = ShortcutListener(self.word_manager)
+        self.shortcut_listener.suppress_shortcuts = self.is_continuous_foreground
         self.shortcut_listener.shortcut_matched.connect(self.on_shortcut_matched)
-        if self.settings.shortcut_code_enabled:
-            self.shortcut_listener.start()
+        # 快捷码监听在启动声明确认后由入口开启。
 
         # --- 新的 Watchdog 文件监控系统 ---
         self.full_reload_timer = QTimer(self)
@@ -162,7 +179,7 @@ class MainController(QObject):
 
         # 新增：初始化自动重启定时器
         self.auto_restart_timer = QTimer(self)
-        self.auto_restart_timer.timeout.connect(self.perform_restart)
+        self.auto_restart_timer.timeout.connect(self._perform_auto_restart)
         self.update_auto_restart_timer()
 
         # 初始化剪贴板定时清除
@@ -176,9 +193,6 @@ class MainController(QObject):
 
         self.ignore_next_clipboard_change = False # 用于防止记录自己的输出
         self.app.clipboard().dataChanged.connect(self.on_clipboard_changed)
-        self.user32 = ctypes.windll.user32
-        self.quickkv_pid = os.getpid()
-        self.last_popup_target_hwnd = 0
         self.pending_paste_request = None
         self.popup_paste_grace_ms = 50
         self.shortcut_paste_grace_ms = 50
@@ -254,7 +268,7 @@ class MainController(QObject):
 
     def _get_foreground_hwnd(self):
         try:
-            return int(self.user32.GetForegroundWindow())
+            return int(self.user32.GetForegroundWindow() or 0)
         except Exception:
             return 0
 
@@ -276,6 +290,25 @@ class MainController(QObject):
 
     def _is_quickkv_foreground(self, hwnd):
         return bool(hwnd) and self._get_window_process_id(hwnd) == self.quickkv_pid
+
+    def is_continuous_foreground(self, hwnd=None):
+        # The native listeners call this off the GUI thread. Only read a Python flag.
+        return self.popup.continuous_input_visible and self._is_quickkv_foreground(
+            self._get_foreground_hwnd() if hwnd is None else hwnd
+        )
+
+    def _set_continuous_target(self, hwnd):
+        pid = self._get_window_process_id(hwnd)
+        if not pid or pid == self.quickkv_pid:
+            self.continuous_target = (0, 0)
+            self.popup.continuous_editor.set_target_label("")
+            return
+
+        self.continuous_target = (hwnd, pid)
+        title_length = self.user32.GetWindowTextLengthW(wintypes.HWND(hwnd))
+        title = ctypes.create_unicode_buffer(max(title_length + 1, 1))
+        self.user32.GetWindowTextW(wintypes.HWND(hwnd), title, len(title))
+        self.popup.continuous_editor.set_target_label(title.value.strip() or "目标窗口")
 
     def _get_pressed_modifiers(self):
         pressed = []
@@ -355,19 +388,25 @@ class MainController(QObject):
                 modifiers=pressed_modifiers,
             )
 
-    def on_hotkey_triggered(self):
+    @Slot(int)
+    def on_hotkey_triggered(self, trigger_id=0):
         # 这个信号现在是从 NativeHotkeyManager 线程发出的
         if not self.settings.hotkeys_enabled: return
+        if trigger_id == 9999 and self.is_continuous_foreground():
+            return
         if self.popup.isVisible():
             log("热键触发：关闭窗口。"); self.hide_popup_signal.emit()
         else:
             self.last_popup_target_hwnd = self._capture_target_hwnd()
+            self._set_continuous_target(self.last_popup_target_hwnd)
             log(f"热键触发：打开窗口。目标 hwnd={self.last_popup_target_hwnd}")
             self.show_popup_signal.emit()
 
     def activate_from_second_instance(self):
         """Bring the already-owned search window to the foreground via local IPC."""
         log("收到第二实例的激活请求。")
+        if not self.popup.isVisible():
+            self._set_continuous_target(0)
         self.show_popup_signal.emit()
 
     @Slot(str)
@@ -481,6 +520,177 @@ class MainController(QObject):
         first_line = found_block['parent']
         return '\n'.join([first_line] + found_block['raw_lines'][1:])
 
+    def _transcribe_output(self, text):
+        if not getattr(self.settings, 'transcription_enabled', True):
+            return text
+        try:
+            return transcribe(text, getattr(self.settings, 'transcription_rules', ''))
+        except TranscriptionError as error:
+            QMessageBox.warning(self.popup, "转写规则错误", f"{error}\n请在转写功能中修正规则，本次输出已取消。")
+            return None
+
+    def expand_continuous_entry(self, block):
+        return self.render_template_output(self._build_output_content(block['full_content'], block))
+
+    def _prepare_continuous_output(self, text):
+        output = self._transcribe_output(text)
+        if output == "":
+            QMessageBox.warning(self.popup, "没有可输出的内容", "转写后的正文为空，草稿已保留。")
+            return None
+        return output
+
+    def _copy_continuous_output(self, text):
+        previous_ignore_state = self.ignore_next_clipboard_change
+        self.ignore_next_clipboard_change = self.settings.clipboard_memory_enabled
+        try:
+            pyperclip.copy(text)
+        except pyperclip.PyperclipException:
+            self.ignore_next_clipboard_change = previous_ignore_state
+            log("连续联想的剪贴板写入失败。")
+            return False
+        return True
+
+    @Slot(str)
+    def copy_continuous_draft(self, text):
+        if not text.strip() or self.continuous_request:
+            return
+        output = self._prepare_continuous_output(text)
+        if output is not None and not self._copy_continuous_output(output):
+            QMessageBox.warning(self.popup, "复制失败", "无法写入剪贴板，请重试。草稿已保留。")
+
+    @Slot(str)
+    def submit_continuous_draft(self, text):
+        if not text.strip() or self.continuous_request:
+            return
+
+        hwnd, pid = self.continuous_target
+        if not hwnd or self._get_window_process_id(hwnd) != pid:
+            QMessageBox.warning(self.popup, "目标窗口不可用", "请从目标窗口重新唤起 QuickKV，或使用“复制整段”。")
+            return
+        if self.pending_paste_request:
+            QMessageBox.warning(self.popup, "正在落字", "请等上一次落字处理结束后重试。")
+            return
+
+        output = self._prepare_continuous_output(text)
+        if output is None:
+            return
+        mode = self.settings.paste_mode
+        if mode == PASTE_MODE_TYPING and any(character in output for character in "\r\n\t"):
+            QMessageBox.warning(
+                self.popup, "当前落字方式不适用于这份草稿",
+                "文本输入方式可能把换行或制表符发送成操作按键。请使用“复制整段”，或改用剪贴板落字方式。",
+            )
+            return
+        self.continuous_request = {
+            'target': (hwnd, pid), 'draft': text, 'output': output, 'mode': mode,
+            'started_at': time.monotonic(), 'stable_hits': 0,
+        }
+        self.popup.continuous_editor.set_submission_pending(True)
+        self.popup.hide()
+        self.continuous_paste_timer.start()
+
+    def _poll_continuous_paste(self):
+        request = self.continuous_request
+        if request is None:
+            self.continuous_paste_timer.stop()
+            return
+
+        process = self.continuous_process
+        if process:
+            exit_code = process.poll()
+            if exit_code is not None:
+                log(f"连续联想落字进程已结束，退出码={exit_code}。")
+                self._finish_continuous_paste(exit_code == 0)
+            elif time.monotonic() - request['started_at'] >= 5:
+                # The target application may hang while handling SendKeys.
+                process.kill()
+            return
+
+        hwnd, pid = request['target']
+        if time.monotonic() - request['started_at'] >= self.paste_timeout_ms / 1000:
+            self._finish_continuous_paste(False)
+            return
+        if self.pending_paste_request or self._get_window_process_id(hwnd) != pid:
+            self._finish_continuous_paste(False)
+            return
+
+        if self._get_foreground_hwnd() == hwnd and not self._get_pressed_modifiers():
+            request['stable_hits'] += 1
+        else:
+            request['stable_hits'] = 0
+        if request['stable_hits'] < 2:
+            return
+
+        if not self._copy_continuous_output(request['output']):
+            self._finish_continuous_paste(False, "无法写入剪贴板，草稿已保留，请重试。")
+            return
+        sequence = self.user32.GetClipboardSequenceNumber()
+        try:
+            clipboard_matches = pyperclip.paste() == request['output']
+        except pyperclip.PyperclipException:
+            clipboard_matches = False
+        if not sequence or not clipboard_matches or self.user32.GetClipboardSequenceNumber() != sequence:
+            self._finish_continuous_paste(False, "剪贴板在准备落字时发生变化，草稿已保留，请重试。")
+            return
+        self._start_continuous_paste_process(hwnd, pid, sequence)
+
+    def _start_continuous_paste_process(self, hwnd, pid, sequence):
+        setup, send = self._paste_commands(self.continuous_request['mode'])
+        if not send:
+            self._finish_continuous_paste(False, "无法执行当前落字方式，草稿已保留。")
+            return
+
+        # Check after PowerShell has loaded, immediately before dispatching global keystrokes.
+        script = f"""$ErrorActionPreference = 'Stop'
+Add-Type -AssemblyName System.Windows.Forms
+Add-Type -Name NativeMethods -Namespace QuickKV -MemberDefinition @'
+[DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+[DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hwnd, out uint pid);
+[DllImport("user32.dll")] public static extern int GetClipboardSequenceNumber();
+[DllImport("user32.dll")] public static extern short GetAsyncKeyState(int key);
+'@
+{setup}
+foreach ($key in 0x11, 0x10, 0x12, 0x5B, 0x5C) {{
+    if ([QuickKV.NativeMethods]::GetAsyncKeyState($key) -band 0x8000) {{ exit 2 }}
+}}
+$foreground = [QuickKV.NativeMethods]::GetForegroundWindow()
+if ($foreground.ToInt64() -ne {hwnd}) {{ exit 2 }}
+[uint32]$targetProcessId = 0
+[void][QuickKV.NativeMethods]::GetWindowThreadProcessId($foreground, [ref]$targetProcessId)
+if ($targetProcessId -ne {pid} -or [QuickKV.NativeMethods]::GetClipboardSequenceNumber() -ne {sequence}) {{ exit 2 }}
+{send}
+"""
+        command = base64.b64encode(script.encode("utf-16-le")).decode("ascii")
+        try:
+            self.continuous_process = subprocess.Popen(
+                ["powershell.exe", "-NoProfile", "-NonInteractive", "-EncodedCommand", command],
+                creationflags=subprocess.CREATE_NO_WINDOW,
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            )
+            self.continuous_request['started_at'] = time.monotonic()
+        except OSError:
+            self._finish_continuous_paste(False, "无法启动落字进程，草稿已保留。")
+
+    def _finish_continuous_paste(self, dispatched, message=None):
+        request, self.continuous_request = self.continuous_request, None
+        self.continuous_process = None
+        self.continuous_paste_timer.stop()
+        editor = self.popup.continuous_editor
+        editor.set_submission_pending(False)
+        if dispatched:
+            editor.complete_submission(request['draft'])
+            return
+
+        self.popup.resume_continuous_after_paste_failure()
+        QMessageBox.warning(self.popup, "未能落字", message or "无法确认目标窗口并完成落字。草稿已保留，你也可以使用“复制整段”。")
+
+    def _stop_continuous_paste(self):
+        self.continuous_paste_timer.stop()
+        self.continuous_request = None
+        process, self.continuous_process = self.continuous_process, None
+        if process and process.poll() is None:
+            process.kill()
+
     @Slot(str)
     def on_suggestion_selected(self, text, target_hwnd=None, origin='popup'):
         found_block = self._find_block_by_full_content(text)
@@ -498,13 +708,9 @@ class MainController(QObject):
             log("模板输出已取消或失败，本次不执行粘贴。")
             return
 
-        content_to_paste = rendered_content
-        if getattr(self.settings, 'transcription_enabled', True):
-            try:
-                content_to_paste = transcribe(content_to_paste, getattr(self.settings, 'transcription_rules', ''))
-            except TranscriptionError as error:
-                QMessageBox.warning(self.popup, "转写规则错误", f"{error}\n请在转写功能中修正规则，本次输出已取消。")
-                return
+        content_to_paste = self._transcribe_output(rendered_content)
+        if content_to_paste is None:
+            return
         self.record_entry_usage(found_block)
 
         self.ignore_next_clipboard_change = True
@@ -516,6 +722,20 @@ class MainController(QObject):
 
     def perform_paste(self):
         self.perform_paste_now(origin='manual')
+
+    @staticmethod
+    def _paste_commands(mode):
+        if mode == PASTE_MODE_CTRL_V:
+            return "", "[System.Windows.Forms.SendKeys]::SendWait('^v')"
+        if mode == PASTE_MODE_CTRL_SHIFT_V:
+            return "", "[System.Windows.Forms.SendKeys]::SendWait('+^v')"
+        if mode == PASTE_MODE_TYPING:
+            return (
+                "$clipboardText = Get-Clipboard -Raw; "
+                "$escapedText = $clipboardText -replace '([\\+\\^\\%\\~\\(\\)\\[\\]\\{\\}])', '{$1}';",
+                "[System.Windows.Forms.SendKeys]::SendWait($escapedText)",
+            )
+        return "", ""
 
     def perform_paste_now(self, origin='manual', target_hwnd=0, foreground_hwnd=0, elapsed_ms=0, forced=False, modifiers=None):
         """
@@ -530,28 +750,11 @@ class MainController(QObject):
             f"forced={forced} modifiers={','.join(modifiers) or 'none'}"
         )
 
-        ps_script = ""
-        if mode == PASTE_MODE_CTRL_V:
-            ps_script = (
-                "Add-Type -AssemblyName System.Windows.Forms; "
-                "[System.Windows.Forms.SendKeys]::SendWait('^v')"
-            )
-        elif mode == PASTE_MODE_CTRL_SHIFT_V:
-            ps_script = (
-                "Add-Type -AssemblyName System.Windows.Forms; "
-                "[System.Windows.Forms.SendKeys]::SendWait('+^v')"
-            )
-        elif mode == PASTE_MODE_TYPING:
-            ps_script = (
-                "Add-Type -AssemblyName System.Windows.Forms; "
-                "$clipboardText = Get-Clipboard -Raw; "
-                "$escapedText = $clipboardText -replace '([\\+\\^\\%\\~\\(\\)\\[\\]\\{\\}])', '{$1}'; "
-                "[System.Windows.Forms.SendKeys]::SendWait($escapedText)"
-            )
-
-        if not ps_script:
+        setup, send = self._paste_commands(mode)
+        if not send:
             log(f"CRITICAL: 未识别的粘贴模式: {mode}")
             return
+        ps_script = f"Add-Type -AssemblyName System.Windows.Forms; {setup} {send}"
 
         try:
             success, pid = self._start_detached_process(
@@ -983,6 +1186,8 @@ class MainController(QObject):
     def on_shortcut_matched(self, full_content, shortcut_code):
         """处理快捷码匹配成功的事件"""
         target_hwnd = self._capture_target_hwnd()
+        if self.is_continuous_foreground(target_hwnd):
+            return
         log(f"主控制器收到快捷码匹配信号: {shortcut_code} | target_hwnd={target_hwnd}")
         QTimer.singleShot(
             self.shortcut_erase_grace_ms,
@@ -990,6 +1195,8 @@ class MainController(QObject):
         )
 
     def _commit_shortcut_match(self, full_content, shortcut_code, target_hwnd):
+        if self.is_continuous_foreground() or self.is_continuous_foreground(target_hwnd):
+            return
         for _ in range(len(shortcut_code)):
             self.shortcut_listener.keyboard_controller.press(keyboard.Key.backspace)
             self.shortcut_listener.keyboard_controller.release(keyboard.Key.backspace)
@@ -999,6 +1206,7 @@ class MainController(QObject):
     @Slot()
     def cleanup_and_exit(self):
         log("开始执行程序清理...")
+        self._stop_continuous_paste()
         self.hotkey_manager.stop()
         if self.shortcut_listener:
             self.shortcut_listener.stop() # 退出时停止快捷码监听
@@ -1006,6 +1214,16 @@ class MainController(QObject):
         if self.instance_manager:
             self.instance_manager.release()
         log("所有监听器已停止，程序准备退出。")
+
+    @Slot()
+    def confirm_exit(self):
+        if not self.popup.continuous_editor.has_draft():
+            return True
+        return QMessageBox.question(
+            self.popup, "草稿尚未落字", "继续会丢弃本次运行中的草稿。要继续吗？",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        ) == QMessageBox.StandardButton.Yes
 
     @Slot()
     def set_paste_mode(self, mode):
@@ -1359,11 +1577,22 @@ class MainController(QObject):
 
     # --- 新增：自动重启相关方法 ---
     @Slot()
+    def _perform_auto_restart(self):
+        if not self.popup.continuous_editor.has_draft():
+            self.perform_restart()
+
+    @Slot()
+    def request_restart(self):
+        if self.confirm_exit():
+            self.perform_restart()
+
+    @Slot()
     def perform_restart(self):
         """执行重启操作"""
         log("执行重启...")
         if not self._save_settings():
             return
+        self._stop_continuous_paste()
         self.popup.hide()
         self.hotkey_manager.stop()
         if self.shortcut_listener:

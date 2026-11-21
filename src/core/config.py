@@ -53,8 +53,8 @@ RANKING_STATE_FILE = os.path.join(USER_DATA_DIR, "ranking_state.json")
 ICON_PATH = resource_path("icon.png")
 
 DEBUG_MODE = True
-VERSION = "1.3.8" # 可配置的最终输出转写
-DISCLAIMER_REVISION = "2"
+VERSION = "1.3.9"
+DISCLAIMER_REVISION = "3"
 
 PASTE_MODE_CTRL_V = "ctrl_v"
 PASTE_MODE_CTRL_SHIFT_V = "ctrl_shift_v"

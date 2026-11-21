@@ -119,6 +119,7 @@ def _install_stubs():
     )
     _module("core.template_renderer", TemplateRenderer=_Dummy, TemplateRenderError=Exception)
     _module("ui.search_popup", SearchPopup=_Dummy)
+    _module("ui.continuous_editor", ContinuousEditor=_Dummy)
     _module("ui.delegates", StyledItemDelegate=_Dummy)
     _module("ui.components", HotkeyDialog=_Dummy, DisclaimerDialog=_Dummy, ScrollableMessageBox=_Dummy, EditDialog=_Dummy, TemplateInputDialog=_Dummy, get_disclaimer_html_text=lambda: "")
     _module("services.hotkey_manager", NativeHotkeyManager=_Dummy)
@@ -373,6 +374,7 @@ class SettingsSaveFailureTests(unittest.TestCase):
         popup.settings = types.SimpleNamespace(width=450, height=300, save=lambda: False)
         popup.width = lambda: 640
         popup.height = lambda: 480
+        popup.is_continuous_mode = lambda: False
 
         popup.hideEvent(object())
 

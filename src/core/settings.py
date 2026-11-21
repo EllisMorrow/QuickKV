@@ -139,7 +139,7 @@ class SettingsManager:
 
     def _set_defaults(self):
         self.hotkeys_enabled = True
-        self.shortcut_code_enabled = False
+        self.shortcut_code_enabled = True
         self.hotkey = 'ctrl+space'
         self.string_trigger_enabled = False
         self.string_trigger_str = '//'
@@ -151,8 +151,8 @@ class SettingsManager:
         self.multi_word_search = True
         self.pinyin_initial_search = True
         self.highlight_matches = True
-        self.word_wrap_enabled = False
-        self.show_source_enabled = False
+        self.word_wrap_enabled = True
+        self.show_source_enabled = True
         self.clipboard_memory_enabled = False
         self.clipboard_memory_count = 10
         self.clipboard_auto_clear_enabled = False

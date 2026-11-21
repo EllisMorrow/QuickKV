@@ -39,6 +39,9 @@ except ImportError:
 
 
 from core.config import *
+from ui.candidate_text import highlighted_html, match_colors
+
+
 class StyledItemDelegate(QStyledItemDelegate):
     def __init__(self, themes, settings):
         super().__init__()
@@ -95,65 +98,12 @@ class StyledItemDelegate(QStyledItemDelegate):
         theme = self.themes[self.settings.theme]
         highlight_groups = block_data.get('highlight_groups', {}) if self.settings.highlight_matches else {}
         
-        highlight_colors = [
-            theme['highlight_color'],
-            "#e5c07b", # 黄色
-            "#c678dd", # 紫色
-            "#98c379", # 绿色
-            "#e06c75"  # 红色
-        ]
+        colors = match_colors(highlight_groups, theme)
+        selected = bool(option.state & QStyle.State_Selected)
+        base_color = theme['item_selected_text'] if selected else theme['text_color']
+        leading = 2 if text.startswith('- ') else 0
+        doc.setHtml(highlighted_html(text[leading:], colors, base_color, offset=leading))
 
-        text = text.replace('\t', '    ')
-        lines = text.split('\n')
-        
-        # 判断选中状态决定基础色
-        is_selected = option.state & QStyle.State_Selected
-        base_color = theme['item_selected_text'] if is_selected else theme['text_color']
-
-        html_parts = []
-        html_parts.append(f'<div style="color: {base_color}; white-space: pre-wrap;">')
-
-        char_offset = 0
-        for i, line in enumerate(lines):
-            text_to_draw = line
-            if i == 0 and line.startswith('- '):
-                text_to_draw = line[2:].strip()
-                char_offset += len(line) - len(text_to_draw)
-
-            # --- 对每一行进行高亮处理 ---
-            line_html = ""
-            for char_idx, char in enumerate(text_to_draw):
-                global_char_idx = char_offset + char_idx
-                
-                # 特殊HTML字符转义
-                safe_char = char.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
-                
-                highlight_group_idx = -1
-                for group_idx, indices in highlight_groups.items():
-                    if global_char_idx in indices:
-                        highlight_group_idx = group_idx
-                        break
-                        
-                if highlight_group_idx != -1:
-                    color_idx = highlight_group_idx % len(highlight_colors)
-                    color = highlight_colors[color_idx]
-                    line_html += f'<span style="color: {color};">{safe_char}</span>'
-                else:
-                    if i > 0 and not is_selected:
-                        # 子节点的颜色稍暗一点 (透明度不支持以这种形式写在内联style，用近似的暗色代替，此处简化为继承)
-                        line_html += f'<span style="opacity: 0.7;">{safe_char}</span>'
-                    else:
-                        line_html += safe_char
-            
-            html_parts.append(line_html)
-            if i < len(lines) - 1:
-                html_parts.append('<br>')
-                
-            char_offset += len(line) + 1 # +1 for newline
-
-        html_parts.append('</div>')
-        doc.setHtml(''.join(html_parts))
-        
         # 调整文档的边距，对应原先的 padding_v = 5
         doc.setDocumentMargin(0) 
         

@@ -146,6 +146,7 @@ class ClipboardCaptureSafetyTests(unittest.TestCase):
             last_popup_target_hwnd=0,
             schedule_paste=lambda target_hwnd, origin: None,
         )
+        controller._transcribe_output = types.MethodType(module.MainController._transcribe_output, controller)
 
         with mock.patch.object(module, "log", logs.append), mock.patch.object(
             module.pyperclip,
