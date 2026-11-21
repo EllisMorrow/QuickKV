@@ -34,10 +34,11 @@ class ContinuousEditor(QWidget):
         self.expand_entry = None
         self._source_blocks = None
         self._prefix_keys = []
-        self._prefix_blocks = []
+        self._prefix_orders = []
         self._shortcuts = {}
         self._last_draft = ""
         self._replacement = None
+        self._rendered_query = None
         self._manual = False
         self._ime_widget = None
         self._pending = False
@@ -211,6 +212,7 @@ class ContinuousEditor(QWidget):
         self._timer.stop()
         self._manual = False
         self._replacement = None
+        self._rendered_query = None
         self.candidates.hide()
         self.preview.hide()
         return was_open
@@ -240,25 +242,31 @@ class ContinuousEditor(QWidget):
             prefixes.extend((key.casefold(), index) for key in terms if key)
         prefixes.sort()
         self._prefix_keys = [key for key, _ in prefixes]
-        self._prefix_blocks = [blocks[index] for _, index in prefixes]
+        self._prefix_orders = [index for _, index in prefixes]
         self._shortcuts = shortcuts
         self._source_blocks = blocks
 
     def _prefix_matches(self, query):
         key = query.casefold()
         index = bisect.bisect_left(self._prefix_keys, key)
-        matches = []
-        seen = set()
+        orders = set()
         while index < len(self._prefix_keys) and self._prefix_keys[index].startswith(key):
-            block = self._prefix_blocks[index]
-            if id(block) not in seen:
-                title = block["parent"]
-                start = block["full_content"].find(title)
-                hits = set(range(start, start + len(query))) if start >= 0 and title.casefold().startswith(key) else set()
-                matches.append({**block, "highlight_groups": {0: hits}})
-                seen.add(id(block))
+            orders.add(self._prefix_orders[index])
             index += 1
-        return matches
+        if not orders:
+            return []
+        candidates = [self._source_blocks[order] for order in sorted(orders)]
+        matches = self.word_manager.find_matches(
+            query, self.settings.multi_word_search, self.settings.pinyin_initial_search,
+            candidates=candidates,
+        )
+        matched = {id(block) for block in matches}
+        # A shortcut prefix can match even when the text scorer finds no title or alias hit.
+        remaining = [block for block in candidates if id(block) not in matched]
+        return matches + [
+            {**block, "highlight_groups": {}}
+            for block in self.word_manager.rank_equal_matches(remaining)
+        ]
 
     def _automatic_match(self, cursor):
         # Qt offsets count UTF-16 units. Limit the examined context even on a long line.
@@ -284,7 +292,7 @@ class ContinuousEditor(QWidget):
                 )
                 inside_word_right = following_latin and _LATIN_CHAR.fullmatch(fragment[-1]) is not None
                 if matches and not (inside_word_left or inside_word_right):
-                    return fragment, [self._highlight_shortcut(block, fragment) for block in matches]
+                    return fragment, self._rank_shortcut_matches(matches, fragment)
         latin = _LATIN.search(before)
         if latin and not following_latin and len(latin[0]) <= 64:
             # Only search the unfinished text on this line, never the whole draft.
@@ -310,6 +318,12 @@ class ContinuousEditor(QWidget):
             query, self.settings.multi_word_search, self.settings.pinyin_initial_search
         )
 
+    def _rank_shortcut_matches(self, blocks, fragment):
+        return [
+            self._highlight_shortcut(block, fragment)
+            for block in self.word_manager.rank_equal_matches(blocks)
+        ]
+
     @staticmethod
     def _highlight_shortcut(block, fragment):
         title = block["full_content"].partition("\n")[0]
@@ -330,7 +344,7 @@ class ContinuousEditor(QWidget):
         end = cursor.position()
         start = end - len(fragment.encode("utf-16-le")) // 2
         self._replacement = (self.editor.document().revision(), start, end)
-        self._render_results(fragment, matches)
+        self._render_results(fragment, matches, query=fragment)
 
     def _open_lookup(self):
         if self._pending or self._ime_widget is not None:
@@ -358,14 +372,14 @@ class ContinuousEditor(QWidget):
         exact = self._shortcuts.get(query.casefold(), [])
         if exact:
             seen = {id(block) for block in exact}
-            matches = [self._highlight_shortcut(block, query) for block in exact] + [
+            matches = self._rank_shortcut_matches(exact, query) + [
                 block for block in matches if id(block) not in seen
             ]
         _, start, end = self._replacement
         cursor = QTextCursor(self.editor.document())
         cursor.setPosition(start)
         cursor.setPosition(end, QTextCursor.KeepAnchor)
-        self._render_results(cursor.selectedText(), matches)
+        self._render_results(cursor.selectedText(), matches, query=query)
 
     def _queue_lookup(self):
         if not self._manual:
@@ -399,7 +413,18 @@ class ContinuousEditor(QWidget):
         elif self.editor.hasFocus():
             self._timer.start()
 
-    def _render_results(self, fragment, matches):
+    @staticmethod
+    def _candidate_identity(block):
+        return block.get("entry_id") or (block.get("source_path"), block["full_content"])
+
+    def _render_results(self, fragment, matches, *, query):
+        render_key = (self._manual, query, self._replacement)
+        current = self.results.currentItem()
+        retained = (
+            self._candidate_identity(current.data(Qt.UserRole))
+            if current is not None and self._rendered_query == render_key else None
+        )
+        self._rendered_query = render_key
         self.lookup.setVisible(self._manual)
         snippet = fragment.replace("\u2029", " ").replace("\t", " ")
         if len(snippet) > 18:
@@ -410,12 +435,15 @@ class ContinuousEditor(QWidget):
         self._reserve_preview = any(
             self._needs_preview(block, min(360, self.editor.viewport().width())) for block in matches
         )
-        for block in matches:
+        row = 0
+        for index, block in enumerate(matches):
             item = QListWidgetItem(block["parent"])
             item.setData(Qt.UserRole, block)
             self.results.addItem(item)
+            if retained is not None and self._candidate_identity(block) == retained:
+                row = index
         if matches:
-            self.results.setCurrentRow(0)
+            self.results.setCurrentRow(row)
         self.results.setVisible(bool(matches))
         self.candidates.show()
         self._update_preview()

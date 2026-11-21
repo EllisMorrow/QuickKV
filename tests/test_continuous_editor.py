@@ -38,9 +38,14 @@ class ContinuousEditorTests(unittest.TestCase):
             "parent": "其他词条", "full_content": "其他词条",
             "aliases": ["tk"], "shortcut_code": None,
         }
-        manager = SimpleNamespace(
-            word_blocks=[self.refund, contact, distractor],
-            find_matches=lambda query, *_: [distractor] if query == "tk" else [],
+        manager = WordManager.__new__(WordManager)
+        manager.ranking_state = None
+        manager.word_blocks = [
+            manager._preprocess_block(block) for block in (self.refund, contact, distractor)
+        ]
+        find_matches = manager.find_matches
+        manager.find_matches = lambda query, *args, **kwargs: (
+            find_matches(query, *args, **kwargs) if kwargs else [distractor] if query == "tk" else []
         )
         settings = SimpleNamespace(
             theme="light", font_size=14, multi_word_search=False, pinyin_initial_search=True
@@ -65,6 +70,8 @@ class ContinuousEditorTests(unittest.TestCase):
         self.assertFalse(self.widget.candidates.isHidden())
 
     def test_multiple_insertions_tight_viewport_and_undo(self):
+        inserted = []
+        self.widget.entry_inserted.connect(lambda block: inserted.append(block["parent"]))
         self.seed("🙂 ")
         self.type_and_wait("tk")
         self.assertEqual(self.widget.results.count(), 1)
@@ -77,6 +84,45 @@ class ContinuousEditorTests(unittest.TestCase):
         self.assertEqual(self.editor.toPlainText(), "🙂 退款说明\n联系在线客服")
         QTest.keyClick(self.editor, Qt.Key_Z, Qt.ControlModifier)
         self.assertEqual(self.editor.toPlainText(), "🙂 退款说明\nlx")
+        self.assertEqual(inserted, ["退款说明", "联系在线客服"])
+
+    def test_same_shortcut_uses_normal_tiebreakers_and_refresh_retains_selection(self):
+        newer = {
+            "entry_id": "progress", "parent": "退款进度", "full_content": "退款进度",
+            "shortcut_code": "tk", "usage_meta": {"count": 1, "last_used_at": "2026-11-21T10:00:00"},
+        }
+        self.refund["entry_id"] = "explanation"
+        self.widget.word_manager.word_blocks = [self.refund, newer]
+        self.type_and_wait("tk")
+        self.assertEqual(self.widget.results.currentItem().text(), "退款进度")
+
+        self.refund["is_favorite"] = True
+        self.widget.refresh_candidates()
+        self.assertEqual(self.widget.results.item(0).text(), "退款说明")
+        self.assertEqual(self.widget.results.currentItem().text(), "退款进度")
+
+        self.widget.word_manager.word_blocks = [self.refund]
+        self.widget.refresh_candidates()
+        self.assertEqual(self.widget.results.currentItem().text(), "退款说明")
+
+    def test_chinese_prefix_matches_follow_main_search_ranking(self):
+        manager = WordManager.__new__(WordManager)
+        manager.ranking_state = None
+        titles = ("退款说明", "退款进度", "售后事项")
+        manager.word_blocks = [
+            manager._preprocess_block({
+                "parent": title, "full_content": title,
+                "aliases": ["退款"] if index == 2 else [],
+            })
+            for index, title in enumerate(titles)
+        ]
+        manager.word_blocks[1]["is_favorite"] = True
+        self.widget.word_manager = manager
+        self.widget._index_entries()
+        matches = self.widget._prefix_matches("退款")
+        expected = manager.find_matches("退款", False, True)
+        self.assertEqual([b["parent"] for b in matches], [b["parent"] for b in expected])
+        self.assertEqual([b["parent"] for b in matches], ["退款进度", "退款说明", "售后事项"])
 
     def test_manual_fuzzy_query_only_replaces_selected_text(self):
         self.seed("保留 🙂 关键词 保留")

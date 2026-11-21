@@ -319,6 +319,14 @@ class WordManager:
             )
         )
 
+    def rank_equal_matches(self, blocks):
+        """Apply the normal tie-breakers to candidates with equal relevance."""
+        scored = [
+            {'block': block, 'base_score': 0, 'original_order': order}
+            for order, block in enumerate(blocks)
+        ]
+        return [item['block'] for item in self._sort_ranking_group(scored)]
+
     def _apply_ranking_adjustments(self, scored_blocks):
         """在基础相关度排序之后，对相近候选做收藏/最近使用微调。"""
         if not scored_blocks:
@@ -588,7 +596,7 @@ class WordManager:
         # 为了安全起见，暂时保留，但其逻辑已被移至 reload_all。
         pass
 
-    def find_matches(self, query, multi_word_search_enabled=False, pinyin_search_enabled=False):
+    def find_matches(self, query, multi_word_search_enabled=False, pinyin_search_enabled=False, *, candidates=None):
         """
         全新的、基于字符映射表的精确匹配算法。
         取代了旧的 fuzzywuzzy 模糊匹配。
@@ -606,7 +614,7 @@ class WordManager:
                 return []
 
         # 2. 当有搜索词时（全局搜索模式）
-        search_pool = self.word_blocks
+        search_pool = self.word_blocks if candidates is None else candidates
         query_lower = query.lower()
         keywords = [k for k in query_lower.split(' ') if k] if multi_word_search_enabled and ' ' in query_lower.strip() else [query_lower]
         
