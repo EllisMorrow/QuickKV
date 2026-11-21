@@ -26,6 +26,9 @@
 
 ## 简易图文教程
 ![20210606180518](https://github.com/user-attachments/assets/3fc1af9b-9ce7-448e-b68a-695b3bb743d4)
+
+https://github.com/user-attachments/assets/8057f2d4-6dbd-45c6-9ea2-6ea3a618b40c
+
 <img alt="PixPin_2025-07-28_14-01-50" src="https://github.com/user-attachments/assets/cdb09453-9761-4790-87f0-325a2f4bd80b" />
 <img alt="PixPin_2025-07-28_14-12-41" src="https://github.com/user-attachments/assets/33ecb4d8-fe0f-4dc9-90f0-e0ee6702c9ed" />
 <img alt="PixPin_2025-08-05_18-37-04" src="https://github.com/user-attachments/assets/df7e170b-6fc1-40fa-8812-86be66481ec1" />
