@@ -1,31 +1,54 @@
-# ⌨️ QuickKV （Q-KV）轻量级中文自动补全拓展软件
-<img width="1916" height="993" alt="PixPin_2025-07-28_13-36-22" src="https://github.com/user-attachments/assets/7f852744-81a3-4f0f-a050-7a5bb702c76c" />
+# ⌨️ QuickKV（Q-KV）
+
+![QuickKV 功能概览：从词库搜索并插入常用文本](docs/images/quickkv-overview-v2.png)
 
 <p align="center">
-  <a href="https://github.com/EllisMorrow/QuickKV/releases/latest"><img src="https://img.shields.io/github/v/release/EllisMorrow/QuickKV"></a>
-  <a href="https://github.com/EllisMorrow/QuickKV/commits/main"><img src="https://img.shields.io/github/last-commit/EllisMorrow/QuickKV"></a>
-  <a href="https://github.com/EllisMorrow/QuickKV/releases"><img src="https://img.shields.io/github/downloads/EllisMorrow/QuickKV/total?label=Downloads&color=brightgreen"></a>
+  <a href="https://github.com/EllisMorrow/QuickKV/releases/latest"><img alt="最新版本" src="https://img.shields.io/github/v/release/EllisMorrow/QuickKV"></a>
+  <a href="https://github.com/EllisMorrow/QuickKV/commits/main"><img alt="最近提交" src="https://img.shields.io/github/last-commit/EllisMorrow/QuickKV"></a>
+  <a href="https://github.com/EllisMorrow/QuickKV/releases"><img alt="下载次数" src="https://img.shields.io/github/downloads/EllisMorrow/QuickKV/total?label=Downloads&color=brightgreen"></a>
 </p>
 
-**QuickKV是一款只专注于中文自动补全、文本拓展的开源、轻量级、高效、零门槛、易迁移、轻度剪贴板记忆、高可定制化、纯净无任何商业目的快捷输入增强工具**。它能让您将所有常用的文本片段（如邮箱、代码、模板、常用回复等）保存在一个或多个简单的 Markdown 文件词库中（多词库可灵活勾选使用），通过全局热键 `Ctrl+Space` 在任何应用程序中即时搜索并粘贴它们（支持拼音首字母，空格多词），极大地提升您的输入效率。
-- 它与**自动补全类软件旗舰软件** FastKeys、PhraseExpander 不同的是，KV只专注于中文补全且支持中文超轻量级，没有其它更多的功能,比如输入字母后加一个特定按钮打开一个软件、网站之类，如果有需要这类功能**推荐可以 FastKeys 配合使用，KV这里就不重复造轮子了**，FastKeys也是款很不错的软件。PhraseExpander 是自动补全标杆级软件，功能相对繁杂，喜欢的也可以尝试。（不过就我个人而言，并不是太乐意去记忆几个字母+一个特定按钮激活的方式来打开软件，因为我自己有几百个软件这样根本不现实，也徒增认知负担，更喜欢图形化直观的图标，我个人更的是用OneCommander，做一个快捷启动的文件夹，文件夹里有分类一键就能展开各种复杂分类打开程序，非常稳定高效，几乎无迁移问题）
-- 它与**剪贴板旗舰类软件** Ditto 的差异是更便捷，**KV也轻度的支持剪贴板记忆**，Ditto 也能将文本图片等分组固定，后期通过快捷搜索找到内容贴入，不过你可能要多按几次键盘按钮，**它更多是侧重在功能强大的剪贴板管理**，而非补全，有很多细微的差异。总的来说它也是一种不错的方式，推荐喜欢的朋友也可以试试，也可以组合使用，由于它的剪贴板功能更强大，**你也可以选择关闭KV的剪贴板记忆使用它的剪贴板，使用KV的补全输入**，这样两者的长处都取，总之选择自己最喜欢的方式（我个人更用KV的简单方式的剪贴板已经足够）。
-- 它与**通常输入法自定义短语**非常类同，的差异是搜索、展现、管理逻辑不一样。输入法的更多是**联想查找**，而KV是**匹配查找**，搜索上KV是聚焦不是发散。展现上KV是任意调节窗口的列表列表式，更利于对比。管理上多md词库（这和txt文本就只是后缀不同），非常易于管理和迁移。不过如果你只有很少的词需要进行拓展，其实输入法自带的短语也就够用了，无须用到KV这些软件，没有需求就不用创造需求，凭空增加自己使用电脑的的成本，但如果你有文本拓展需求时使用KV或上述提到的软件，那就是效率增益。
-- 它与**脚本语言自动化软件自动补全软件 AutoHotkey、Espanso 差异是**，它是定制好的，是基于 Python 的， Python 延展性可库支持是很强大的，且现在AI编程对Python的支持是非常好的，很多简单的需求和改进一句话基本就能解决需求，换句话说对小白而言只要环境搭建好开发效率也会大大高于 Quicker 这类积木软件，你都不用去搭积木了。
-- 它与**工具库插件库类软件 Flow Launcher、Quicker**这类庞大快的指令型软件差异，也是很明显的，你不需要去写一个插件，它已经是一个完成体，当然你要喜欢自己用代码或搭积木再定制，那么上这两也是可以的。
+**把常用文本存进 Markdown 词库，需要时搜索、选择并插入。** QuickKV 是面向中文输入的 Windows 开源文本拓展工具：支持拼音首字母、多关键词搜索和多个词库，也可以保存回复、代码片段、模板等内容。
 
-**Anyhow 按自己所需所喜欢的来就是最适合，就是最好的！**
+[下载最新版本](https://github.com/EllisMorrow/QuickKV/releases/latest) · [快速开始](#快速开始) · [功能概览](#功能概览) · [图文与视频演示](#图文与视频演示) · [用户手册](#用户手册) · [更新日志](CHANGELOG.md)
+
+## 快速开始
+
+1. 从 [Releases](https://github.com/EllisMorrow/QuickKV/releases/latest) 下载并解压 Windows 程序，启动 QuickKV，阅读并确认启动声明。
+2. 在需要输入文字的地方按 `Ctrl + Space`，输入关键词或拼音首字母搜索。
+3. 使用方向键选择并按 `Enter`，或用鼠标单击词条，将内容插入当前应用。
+4. 在系统托盘右键管理词库和设置；也可以编辑程序目录下自动创建的 `MD词库-需自动载入的请放入/词库.md`，添加自己的常用内容。
+
+> 剪贴板记忆默认关闭。开启后，复制的文本会以明文保存在本机词库中；请避免复制不希望被记录的敏感信息。快捷码默认开启，会监听按键以匹配触发码；可在托盘关闭。详见[重要声明与许可协议](#privacy-and-license)。
+
+## 功能概览
+
+- **搜索即用**：用中文、拼音首字母或空格分隔的多个关键词查找词条；收藏和最近使用可帮助常用结果靠前。
+- **本地 Markdown 词库**：同时使用多个词库文件或文件夹，管理常用回复、代码片段和多行模板。
+- **连续联想**：在多行草稿中边写边查找、插入词条，再将整段内容输出到目标应用。
+- **快捷码与动态模板**：直接输入快捷码触发词条，也可以在模板中填写日期、剪贴板内容和临时输入字段。
+- **按需调整输出**：支持输出转写规则、三种粘贴方式，以及可选的剪贴板文字记忆。
+
+[查看完整功能说明](#quickkv-核心特性) · [查看词库与使用手册](#用户手册) · [查看版本更新](CHANGELOG.md)
 
 ---
 
-## 📢 最新更新与变更历史
+### 程序界面
 
-项目的详细**更新日志与变更历史**请移至单独的 [文档 (CHANGELOG.md)](CHANGELOG.md) 进行查阅。
+以下为原有界面截图，界面可能随版本更新。
+
+<img alt="QuickKV 搜索窗口与系统托盘界面" src="https://github.com/user-attachments/assets/7f852744-81a3-4f0f-a050-7a5bb702c76c" />
+
 
 ---
 
-## 简易图文教程
-![20210606180518](https://github.com/user-attachments/assets/3fc1af9b-9ce7-448e-b68a-695b3bb743d4)
+## 图文与视频演示
+
+以下是原有的演示动图、视频和图解。部分素材展示的是较早版本，界面和菜单可能与当前版本不同；具体操作以当前程序和下方手册为准。
+
+### 快速体验：动图与视频
+
+![QuickKV 搜索与插入演示动图](https://github.com/user-attachments/assets/3fc1af9b-9ce7-448e-b68a-695b3bb743d4)
 
 <div align="center">
 
@@ -33,22 +56,79 @@ https://github.com/user-attachments/assets/cc4f61c0-a4e3-4677-bbbc-e43e43d8784f
 
 </div>
 
-<img alt="PixPin_2025-07-28_14-01-50" src="https://github.com/user-attachments/assets/cdb09453-9761-4790-87f0-325a2f4bd80b" />
-<img alt="PixPin_2025-07-28_14-12-41" src="https://github.com/user-attachments/assets/33ecb4d8-fe0f-4dc9-90f0-e0ee6702c9ed" />
-<img alt="PixPin_2025-08-05_18-37-04" src="https://github.com/user-attachments/assets/df7e170b-6fc1-40fa-8812-86be66481ec1" />
+### 图解教程
 
-<img alt="PixPin_2025-08-02_00-11-00" src="https://github.com/user-attachments/assets/a10595ac-bada-4a4b-93f6-39bef4bf405a" />
-<img alt="PixPin_2025-07-28_14-20-04" src="https://github.com/user-attachments/assets/be0a526a-8dc2-4179-8935-7caf4e70a3b1" />
-<img alt="PixPin_2025-07-28_14-23-06" src="https://github.com/user-attachments/assets/000ccf0e-5585-4880-97d6-243dbd70a293" />
-<img alt="PixPin_2025-07-28_14-36-52" src="https://github.com/user-attachments/assets/2fafcfe6-15ff-40ff-9d92-c5a0b8502e62" />
-<img alt="PixPin_2025-07-28_15-00-50" src="https://github.com/user-attachments/assets/dd679348-6b82-4364-96f1-ed6e9eee84e7" />
-<img alt="PixPin_2025-07-28_15-08-24" src="https://github.com/user-attachments/assets/b48a1555-347c-4bf3-ae89-2852c599ed0e" />
-<img alt="PixPin_2025-07-28_15-31-43" src="https://github.com/user-attachments/assets/061fdf73-98a2-47d1-93f5-c9453cbda5bd" />
-<img alt="PixPin_2025-07-28_15-21-46" src="https://github.com/user-attachments/assets/909f6cfa-6b51-416c-8dde-4bd326b227f8" />
+按主题展开查看原有图解：
+
+<details>
+<summary>搜索与匹配</summary>
+
+**呼出窗口并搜索词条**
+
+<img alt="呼出窗口并搜索词条" src="https://github.com/user-attachments/assets/cdb09453-9761-4790-87f0-325a2f4bd80b" />
+
+**拼音与多关键词匹配**
+
+<img alt="拼音与多关键词匹配" src="https://github.com/user-attachments/assets/33ecb4d8-fe0f-4dc9-90f0-e0ee6702c9ed" />
+
+**搜索结果高亮**
+
+<img alt="搜索结果高亮" src="https://github.com/user-attachments/assets/df7e170b-6fc1-40fa-8812-86be66481ec1" />
+
+
+</details>
+
+<details>
+<summary>快捷码与词条管理</summary>
+
+**快捷码示例**
+
+<img alt="快捷码示例" src="https://github.com/user-attachments/assets/a10595ac-bada-4a4b-93f6-39bef4bf405a" />
+
+**添加词条到词库**
+
+<img alt="添加词条到词库" src="https://github.com/user-attachments/assets/be0a526a-8dc2-4179-8935-7caf4e70a3b1" />
+
+**编辑或删除词条**
+
+<img alt="编辑或删除词条" src="https://github.com/user-attachments/assets/000ccf0e-5585-4880-97d6-243dbd70a293" />
+
+**选择与自动载入词库**
+
+<img alt="选择与自动载入词库" src="https://github.com/user-attachments/assets/2fafcfe6-15ff-40ff-9d92-c5a0b8502e62" />
+
+</details>
+
+<details>
+<summary>多行模板与搜索</summary>
+
+**多行模板与隐藏标题**
+
+<img alt="多行模板与隐藏标题" src="https://github.com/user-attachments/assets/dd679348-6b82-4364-96f1-ed6e9eee84e7" />
+
+**模板标题与搜索**
+
+<img alt="模板标题与搜索" src="https://github.com/user-attachments/assets/b48a1555-347c-4bf3-ae89-2852c599ed0e" />
+
+</details>
+
+<details>
+<summary>界面与托盘设置</summary>
+
+**日间与夜间主题**
+
+<img alt="日间与夜间主题" src="https://github.com/user-attachments/assets/061fdf73-98a2-47d1-93f5-c9453cbda5bd" />
+
+**系统托盘菜单**
+
+<img alt="系统托盘菜单" src="https://github.com/user-attachments/assets/909f6cfa-6b51-416c-8dde-4bd326b227f8" />
+
+
+</details>
 
 ---
 
-## QuickKV核心特性（文本介绍）
+## QuickKV 核心特性
 
 *   **全局热键**: 在任何地方按下 `Ctrl + Space` 即可呼出搜索框。默认热键通过 Windows 原生 API 注册；快捷码默认开启，确认启动声明后生效，可在托盘关闭。连续字符串盲打触发默认关闭。
 *   **多词库管理**:
@@ -82,10 +162,23 @@ https://github.com/user-attachments/assets/cc4f61c0-a4e3-4677-bbbc-e43e43d8784f
     *   可自由**调整窗口大小**和**设置字体大小**。
     *   支持**窗口置顶**（图钉功能）。
 *   **稳定性保障**:
-    *   **原生快捷键**: 使用 Windows 原生 API 注册全局热键，彻底告别因钩子不稳定导致的快捷键失效问题。
-    *   可选的**间隔时间自动重启**功能，确保程序长时间稳定运行。
-*   **轻量与高效**: 后台静默运行，占用极少系统资源，并通过文件热重载实现配置和词库的实时更新。
+    *   **原生快捷键**: 使用 Windows 原生 API 注册全局热键，减少对键盘钩子的依赖；若快捷键被占用，注册仍可能失败。
+    *   可选的**间隔时间自动重启**功能，可按需定时重启程序。
+*   **轻量与高效**: 后台运行，并监控词库文件变化以重新加载内容。
 
+
+---
+
+## 如何选择工具
+
+QuickKV 聚焦通过搜索找到并输出常用文本；不同工具适合不同的工作习惯：
+
+- **输入法自定义短语**：如果只有少量固定短语，输入法自带功能可能已经够用。QuickKV 提供列表式搜索和多个 Markdown 词库，适合需要管理较多内容的场景。
+- **FastKeys、PhraseExpander**：提供更广泛的自动化或文本拓展能力。QuickKV 侧重中文词条的搜索和管理；需要其他能力时，也可以按需组合工具。
+- **Ditto**：侧重剪贴板管理。可以关闭 QuickKV 的剪贴板记忆，用 Ditto 管理剪贴板、用 QuickKV 管理和搜索词库。
+- **AutoHotkey、Espanso、Flow Launcher、Quicker**：各有脚本、插件或可定制工作流。QuickKV 已提供现成的文本搜索与拓展界面；如果需要更多自动化，也可以选择或搭配这些工具。
+
+作者更喜欢用图形化方式管理大量程序快捷方式，例如使用 OneCommander 的分类文件夹。工具是否值得使用，取决于自己的实际需求和习惯。
 
 ---
 
@@ -93,22 +186,24 @@ https://github.com/user-attachments/assets/cc4f61c0-a4e3-4677-bbbc-e43e43d8784f
 
 ### 1. 安装与配置
 
-**步骤一：安装依赖**
+**使用 Windows 发布包**
 
-如果使用exe程序在 https://github.com/EllisMorrow/QuickKV/releases 下载即可，无须使用 Python 配置，可跳过步骤一二三，exe程序会被杀软误杀加入白名单就能正常运行。
+从 [Releases](https://github.com/EllisMorrow/QuickKV/releases) 下载并解压完整程序目录，运行其中的 `QuickKV.exe`，无需安装 Python。首次启动后，程序会在 EXE 同级目录创建 `用户数据/` 和 `MD词库-需自动载入的请放入/`，并生成示例词库。请保留整个程序目录，并定期备份自己的词库和用户数据。
 
-本工具使用 Python 编写，需要您先安装 Python 环境（推荐 Python 3.8+）。然后，在终端中运行以下命令安装所需库：
+**从源码运行（Windows）**
 
-```bash
-pip install -r requirements.txt
+在项目根目录创建并激活虚拟环境，再安装依赖并启动实际入口：
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
+python src/main.py
 ```
 
-**步骤二：准备文件**
+源码运行时，默认词库和用户数据创建在 `src/` 下。项目依赖和 Qt 版本会影响 Python 兼容性，请使用与当前依赖兼容的 Python 版本；程序的全局热键等功能依赖 Windows。
 
-1.  将代码保存为 `quick_kv.py`。
-2.  在 `quick_kv.py` 所在的目录下，创建一个名为 `词库.md` 的文件。如果文件不存在，程序首次启动时会自动为您创建示例。
-
-**步骤三：编辑词库**
+**编辑词库**
 
 用任何文本编辑器打开 `.md` 词库文件。程序支持两种格式的词条：
 
@@ -137,7 +232,7 @@ pip install -r requirements.txt
 **3. 快捷码 (高级功能)**
 快捷码是一种无需呼出搜索框即可快速粘贴内容的方式。
 
-*   **设置快捷码**: 在词条的父级行末尾，添加 ` ``k:触发码`` ` 语法即可。`k` 或 `K` 都支持，英文冒号 `:` 和中文冒号 `：` 也都支持。触发码可以是任何字母、数字或符号的组合。
+*   **设置快捷码**: 在词条的父级行末尾，添加 ` ``k:触发码`` ` 语法即可。`k` 或 `K` 都支持，英文冒号 `:` 和中文冒号 `：` 也都支持。触发码可使用字母、数字及可识别的符号组合。
     ```markdown
     - 我的个人邮箱 ``k:mymail``
     - 项目路径 ``K：p1;``
@@ -184,6 +279,7 @@ pip install -r requirements.txt
     *   只是浏览、悬停、来回移动焦点，不会被当成“最近使用”。
 
 ### 转写功能
+
 托盘菜单中，“自动载入的md词库”下方的“转写功能”可设置最终输出替换规则。每行一条，左右均使用英文双引号：
 
 ```text
@@ -250,12 +346,7 @@ pip install -r requirements.txt
 
 ### 2. 使用说明
 
-1.  **启动程序**:
-
-    在终端中，进入 `quick_kv.py` 文件所在的目录，然后运行：
-    ```bash
-    python quick_kv.py
-    ```
+1.  **启动程序**：运行发布包中的 `QuickKV.exe`，或按上面的源码运行步骤启动。
 
 2.  **呼出窗口**:
     在任何需要输入文本的地方，按下快捷键 `Ctrl + Space`。
@@ -288,11 +379,14 @@ pip install -r requirements.txt
 KVTree 支持用 Markdown 文件无序列表树（大纲）建立词库，建立的词库软件会自动转换生成为 QuickKV 词库
 需要可点击下载使用 → [KVTree](https://github.com/msjsc001/KV-Tree/)
 
-V1.2.0版界面
-<img width="2120" height="1586" alt="image" src="https://github.com/user-attachments/assets/4e8406e2-150c-4018-b877-331808b28e5a" />
-V0.5-0.9版图解演示
-<img alt="503D67DE29FDBA7D13832F52DB4007DF" src="https://github.com/user-attachments/assets/78b83c0a-4307-4ed9-9e21-d119b2f80e7d" />
-<img alt="image" src="https://github.com/user-attachments/assets/82fb7bec-96e3-4114-95b5-a813ff73f2e9" />
+### KVTree v1.2.0 界面
+
+<img alt="KVTree v1.2.0 界面" src="https://github.com/user-attachments/assets/4e8406e2-150c-4018-b877-331808b28e5a" />
+
+### KVTree v0.5–0.9 图解演示
+
+<img alt="KVTree 词库编辑与转换图解" src="https://github.com/user-attachments/assets/78b83c0a-4307-4ed9-9e21-d119b2f80e7d" />
+<img alt="KVTree 词树转换图解" src="https://github.com/user-attachments/assets/82fb7bec-96e3-4114-95b5-a813ff73f2e9" />
 ---
 
 ## 开发者指南
@@ -301,17 +395,17 @@ V0.5-0.9版图解演示
 
 ### 1. 技术栈 (Tech Stack)
 
-*   **核心语言**: Python 3.8+ (保证了轻量级、跨平台潜力和丰富的扩展库)
+*   **核心语言**: Python；具体版本需与当前依赖兼容。系统交互功能面向 Windows。
 *   **GUI 框架**: PySide6 (Qt for Python 6) - 用于构建无边框悬浮窗、托盘菜单和渲染优化的富文本引擎。
 *   **全局系统交互**:
-    *   `ctypes.windll.user32` - 极低底层的 Windows API 调用，用于绝对无冲突的全局热键 (RegisterHotKey) 注册。
+    *   `ctypes.windll.user32` - 极低底层的 Windows API 调用，用于全局热键 (RegisterHotKey) 注册；快捷键被占用时注册可能失败。
     *   `pynput` - 用于实现全局键盘钩子，在后台毫秒级监听连续字符串触发密码，以及实现底层按键拦截、回退补偿 (Auto-Erase)。
     *   `pyperclip` - 高稳定性的跨应用程序剪贴板读写库。
 *   **文本检索与分词**:
     *   `pypinyin` - 提供高效精准的中文字符转首字母逻辑，实现无缝的首字母模糊搜索。
     *   `python-liquid` - 作为中文模板变量的底层渲染引擎，负责安全执行最终输出前的模板展开。
 *   **文件系统监控**:
-    *   `watchdog` / `QFileSystemWatcher` - 用于目录及词库文件的热重载监控，实现“即改即用”。
+    *   `watchdog` - 监控词库文件与目录变化，触发重新加载。
 
 ### 2. 项目架构 (v1.2+ MVC 分解版本)
 
@@ -320,14 +414,14 @@ V0.5-0.9版图解演示
 *   **`core/` (核心配置与数据层)**: 存放了不包含UI组件的纯逻辑代码，包含配置加载 `config.py`，参数管理 `settings.py`，全盘词库聚合和搜索映射逻辑 `word_manager.py`、词源解析 `word_source.py`，以及收藏状态管理 `ranking_state.py` 与中文模板渲染 `template_renderer.py`。
 *   **`ui/` (表现层)**: 存放所有基于 PySide6 构建的图形界面组件，如主要的搜索无边框窗口 `search_popup.py`，负责渲染多行变色排版的 `delegates.py`，以及其余弹框 `components.py`。
 *   **`services/` (系统服务层)**: 集成了所有后台监听进程，负责与操作系统的外部交互。包括 Windows 原生快捷键调用 `hotkey_manager.py`，以及基于 `pynput` 捕获快捷码的 `shortcut_listener.py`。
-*   **`main_controller.py`**: 作为项目的主要调度员，不包含具体底层逻辑，只负责拼接各个组件并连接信号。
+*   **`main_controller.py`**: 协调界面、词库和系统服务，并处理输出、监听及资源生命周期。
 
 ### 3. 开发核心技术点
 
-*   **连续字符串防冲突无痕盲打 (String Trigger)**: 使用双端队列 (`collections.deque`) 截获系统级击键，不干扰正常输入流。匹配瞬间发送退格键消除触发符，兼顾了爽快感与无侵入式体验。
-*   **原生快捷键与线程安全**: 使用 `ctypes` 在一个独立的 `threading` 线程中监听热键。触发时，通过 PySide6 的**信号/槽机制**安全地通知主 GUI 线程执行 UI 操作，做到了响应迅速且告别系统崩溃。
-*   **超长列表极速渲染缓存**: 针对 `QTextDocument` 耗时的 HTML 生成流程，在 `delegates.py` 中挂载了 LRU 内存字典。将文本、窗口状态、甚至动态高亮特征码结合作为 Key，在滚轮狂飙时实现 100% “贴图级”零卡顿。
-*   **高鲁棒性防抖机制 (Debounce)**: 搜索框与文件系统监控（使用 `QTimer` 或 `watchdog`）分别植入了 200ms 和 500ms 的阻尼防抖，防止急触或密集保存打穿 IO 与 CPU。
+*   **连续字符串防冲突无痕盲打 (String Trigger)**: 使用输入缓冲区识别连续字符串；匹配后发送退格键删除触发符，再呼出窗口。该功能默认关闭。
+*   **原生快捷键与线程安全**: 使用 `ctypes` 在一个独立的 `threading` 线程中监听热键。触发时，通过 PySide6 的**信号/槽机制**安全地通知主 GUI 线程执行 UI 操作，将界面操作交由 GUI 线程处理。
+*   **超长列表极速渲染缓存**: 针对 `QTextDocument` 耗时的 HTML 生成流程，在 `delegates.py` 中挂载了 LRU 内存字典。将文本、窗口状态、甚至动态高亮特征码结合作为 Key，以减少滚动列表时的重复渲染。
+*   **高鲁棒性防抖机制 (Debounce)**: 搜索框与文件系统监控（使用 `QTimer` 或 `watchdog`）分别使用 200ms 和 500ms 的防抖，减少输入或密集保存时重复处理。
 
 ### 4. 项目结构
 
@@ -379,6 +473,8 @@ V0.5-0.9版图解演示
     构建成功后，绿色免安装程序位于 `dist/QuickKV/`；正式发布时将整个 `QuickKV/` 目录压缩为 ZIP。
 
 ---
+
+<a id="privacy-and-license"></a>
 
 ## ⚠️ 重要声明与许可协议 (IMPORTANT DISCLAIMER & LICENSE)
 
