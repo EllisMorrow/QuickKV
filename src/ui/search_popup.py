@@ -42,6 +42,7 @@ from core.config import *
 from ui.delegates import StyledItemDelegate
 from ui.components import EditDialog, ScrollableMessageBox
 from ui.continuous_editor import ContinuousEditor
+from core.composition.mode import InputMode
 from ui.library_target_menu import populate_library_target_menu
 
 
@@ -61,8 +62,9 @@ class SearchPopup(QWidget):
         self.resize_start_pos = None
         self.resize_start_geom = None
         self.continuous_input_visible = False
-        self.continuous_size = None
-        self.search_size = None
+        self.draft_input_visible = False
+        self.input_mode = InputMode.SEARCH
+        self.mode_sizes = {}
 
         self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool)
         self.setAttribute(Qt.WA_TranslucentBackground) # 重新禁用透明属性
@@ -74,7 +76,8 @@ class SearchPopup(QWidget):
         main_layout.setContentsMargins(0, 0, 0, 0) # 移除边距，让 container 填满窗口
         main_layout.addWidget(self.container)
         shadow = QGraphicsDropShadowEffect(self); shadow.setBlurRadius(15); shadow.setColor(QColor(0, 0, 0, 80)); shadow.setOffset(0, 2)
-        self.container.setGraphicsEffect(shadow) # 移除阴影
+        self.container.setGraphicsEffect(shadow)
+        self.popup_shadow = shadow # 移除阴影
         
         container_layout = QVBoxLayout(self.container)
         container_layout.setContentsMargins(1, 1, 1, 1) # 恢复紧凑的边距
@@ -88,10 +91,15 @@ class SearchPopup(QWidget):
         
         title_bar_layout.addStretch()
 
+        self.composition_button = QPushButton("组合输入")
+        self.composition_button.setCheckable(True)
+        self.composition_button.clicked.connect(lambda: self.toggle_mode(InputMode.COMPOSITION))
+        title_bar_layout.addWidget(self.composition_button)
+
         self.mode_button = QPushButton("连续联想")
         self.mode_button.setCheckable(True)
         self.mode_button.setToolTip("切换快捷搜索和连续联想")
-        self.mode_button.toggled.connect(self._switch_mode)
+        self.mode_button.clicked.connect(lambda: self.toggle_mode(InputMode.CONTINUOUS))
         title_bar_layout.addWidget(self.mode_button)
         
         self.close_button = QPushButton("✕")
@@ -120,6 +128,11 @@ class SearchPopup(QWidget):
         )
         container_layout.addWidget(self.continuous_editor, 1)
         self.continuous_editor.hide()
+        from ui.composition_workspace import CompositionWorkspace
+        self.composition = CompositionWorkspace(word_manager, settings_manager, self.container)
+        self.composition.escape_requested.connect(self.hide)
+        container_layout.addWidget(self.composition, 1)
+        self.composition.hide()
 
         # 添加 QSizeGrip 用于右下角缩放
         self.size_grip = QSizeGrip(self)
@@ -156,7 +169,8 @@ class SearchPopup(QWidget):
         # 无边框窗口中，QLineEdit/QListWidget等交互控件会抢占鼠标事件，
         # 导致窗口边缘的缩放逻辑无法被触发。通过事件过滤器拦截边缘区域的鼠标事件来解决。
         for w in [self.container, self.search_box, self.list_widget,
-                  self.list_widget.viewport(), self.title_label, self.mode_button, self.close_button]:
+                  self.list_widget.viewport(), self.title_label, self.composition_button, self.mode_button, self.close_button,
+                  self.composition.editor.viewport()]:
             w.installEventFilter(self)
 
     @Slot()
@@ -210,6 +224,11 @@ class SearchPopup(QWidget):
         self.setGeometry(new_geom)
 
     def eventFilter(self, watched, event):
+        if watched in (self.mode_button, self.composition_button) and event.type() in (
+                QEvent.MouseButtonPress, QEvent.MouseButtonRelease):
+            self.end_resize()
+            self.restore_edge_cursor()
+            return super().eventFilter(watched, event)
         """
         事件过滤器：拦截子控件上的鼠标事件，使无边框窗口的全方位边缘缩放正常工作。
         核心问题：QLineEdit、QListWidget 等交互控件会抢先消费鼠标事件，导致 SearchPopup
@@ -217,6 +236,10 @@ class SearchPopup(QWidget):
         本过滤器在子控件之前拦截事件，当鼠标处于窗口边缘 resize_margin 范围内时，
         优先执行缩放逻辑。
         """
+        if event.type() in (QEvent.Leave, QEvent.Hide, QEvent.WindowDeactivate, QEvent.UngrabMouse):
+            self.restore_edge_cursor()
+            if event.type() in (QEvent.Hide, QEvent.WindowDeactivate, QEvent.UngrabMouse):
+                self.end_resize()
         if event.type() == QEvent.MouseMove:
             # 将子控件坐标映射到窗口级坐标
             window_pos = self.mapFromGlobal(watched.mapToGlobal(event.position().toPoint()))
@@ -228,17 +251,21 @@ class SearchPopup(QWidget):
 
             # 检测鼠标是否在窗口边缘
             cursor_shape = self._check_edge(window_pos)
-            if cursor_shape is not None:
+            if cursor_shape is not None and watched not in (self.mode_button, self.composition_button, self.close_button):
                 # 在边缘区域 → 覆盖子控件（如 QLineEdit 的 I-beam）的光标
+                if getattr(self, "_edge_widget", None) is not watched:
+                    self.restore_edge_cursor()
+                    self._edge_widget = watched
+                    self._edge_cursor = watched.cursor() if watched.testAttribute(Qt.WA_SetCursor) else None
                 watched.setCursor(cursor_shape)
             else:
                 # 不在边缘 → 恢复子控件的默认光标
-                watched.unsetCursor()
+                self.restore_edge_cursor()
 
         elif event.type() == QEvent.MouseButtonPress and event.button() == Qt.LeftButton:
             window_pos = self.mapFromGlobal(watched.mapToGlobal(event.position().toPoint()))
             cursor_shape = self._check_edge(window_pos)
-            if cursor_shape is not None:
+            if cursor_shape is not None and watched not in (self.mode_button, self.composition_button, self.close_button):
                 # 在边缘按下鼠标 → 启动缩放，完全拦截事件
                 self.resizing = True
                 self.resize_start_pos = event.globalPosition().toPoint()
@@ -247,16 +274,36 @@ class SearchPopup(QWidget):
 
         elif event.type() == QEvent.MouseButtonRelease:
             if self.resizing:
-                # 缩放结束 → 重置所有状态
-                self.resizing = False
-                self.resize_start_pos = None
-                self.resize_start_geom = None
-                for k in self.resize_edge: self.resize_edge[k] = False
-                self.unsetCursor()
-                watched.unsetCursor()
+                self.end_resize()
                 return True
 
         return super().eventFilter(watched, event)
+
+    def end_resize(self):
+        if self.resizing:
+            self.resizing = False
+            self.resize_start_pos = None
+            self.resize_start_geom = None
+            self.resize_edge = dict.fromkeys(self.resize_edge, False)
+            self.unsetCursor()
+            self.restore_edge_cursor()
+
+    def restore_edge_cursor(self):
+        widget = getattr(self, "_edge_widget", None)
+        if widget is not None:
+            self._edge_widget = None
+            if self._edge_cursor is None:
+                widget.unsetCursor()
+            else:
+                widget.setCursor(self._edge_cursor)
+
+    def changeEvent(self, event):
+        if event.type() == QEvent.ActivationChange and not self.isActiveWindow():
+            self.restore_edge_cursor()
+            self.unsetCursor()
+            self.resizing = False
+            self.drag_position = None
+        super().changeEvent(event)
 
     def _update_resize_cursor(self, pos):
         """供 SearchPopup 自身的 mouseMoveEvent 使用（当事件直接到达父窗口时）"""
@@ -316,66 +363,119 @@ class SearchPopup(QWidget):
 
 
     def showEvent(self, event):
-        self.continuous_input_visible = self.is_continuous_mode()
+        self._track_draft_visibility(True)
         super().showEvent(event)
 
     def hideEvent(self, event):
-        self.continuous_input_visible = False
+        self._track_draft_visibility(False)
+        self._save_mode_size()
         if self.is_continuous_mode():
-            self.continuous_size = self.size()
             self.continuous_editor.dismiss_candidates()
-            super().hideEvent(event)
-            return
-        self._save_search_size()
+        self.composition.flush()
         super().hideEvent(event)
 
-    def _save_search_size(self):
-        previous_width, previous_height = self.settings.width, self.settings.height
-        self.settings.width, self.settings.height = self.width(), self.height()
-        if not self.settings.save():
-            self.settings.width, self.settings.height = previous_width, previous_height
-            log("窗口尺寸保存失败，已保留上次的配置尺寸。")
+    def _track_draft_visibility(self, visible):
+        self.continuous_input_visible = self.is_continuous_mode() and visible
+        self.draft_input_visible = self.input_mode != InputMode.SEARCH and visible
+
+    def _save_mode_size(self):
+        self.mode_sizes[self.input_mode] = self.size()
+        if self.input_mode == InputMode.SEARCH:
+            previous = self.settings.width, self.settings.height
+            self.settings.width, self.settings.height = self.width(), self.height()
+            if not self.settings.save():
+                self.settings.width, self.settings.height = previous
+                log("窗口尺寸保存失败，已保留上次的配置尺寸。")
 
     def is_continuous_mode(self):
-        return self.mode_button.isChecked()
+        return self.input_mode == InputMode.CONTINUOUS
 
-    def _switch_mode(self, enabled):
-        if enabled:
-            self.search_size = self.size()
-            self._save_search_size()
-        else:
-            self.continuous_size = self.size()
+    def toggle_mode(self, mode):
+        self.set_input_mode(InputMode.SEARCH if self.input_mode == mode else mode)
+
+    def set_input_mode(self, mode):
+        if self.input_mode == mode:
+            return
+        self.restore_edge_cursor()
+        self._save_mode_size()
+        if self.is_continuous_mode():
             self.continuous_editor.dismiss_candidates()
-        self.continuous_input_visible = enabled and self.isVisible()
+        if self.input_mode == InputMode.COMPOSITION:
+            self.composition.dismiss_panel()
+            self.composition.flush()
+        self.input_mode = mode
+        self.popup_shadow.setEnabled(mode != InputMode.COMPOSITION)
+        self._track_draft_visibility(self.isVisible())
+        self.mode_button.setChecked(mode == InputMode.CONTINUOUS)
+        self.composition_button.setChecked(mode == InputMode.COMPOSITION)
         self.search_debounce_timer.stop()
-        self.search_box.setVisible(not enabled)
-        self.list_widget.setVisible(not enabled)
-        self.continuous_editor.setVisible(enabled)
-        if enabled:
-            self.setMinimumSize(360, 235)
-            if self.continuous_size is not None:
-                self.resize(self.continuous_size)
-            else:
-                self.resize(max(500, self.width()), max(320, self.height()))
+        self.search_box.setVisible(mode == InputMode.SEARCH)
+        self.list_widget.setVisible(mode == InputMode.SEARCH)
+        self.continuous_editor.setVisible(mode == InputMode.CONTINUOUS)
+        self.composition.setVisible(mode == InputMode.COMPOSITION)
+        dimensions = {
+            InputMode.SEARCH: (250, 150, self.settings.width, self.settings.height),
+            InputMode.CONTINUOUS: (360, 235, max(500, self.width()), max(320, self.height())),
+            InputMode.COMPOSITION: (465, 275, max(650, self.width()), max(465, self.height())),
+        }
+        minimum_width, minimum_height, width, height = dimensions[mode]
+        self.setMinimumSize(minimum_width, minimum_height)
+        if mode in self.mode_sizes:
+            self.resize(self.mode_sizes[mode])
+        else:
+            self.resize(width, height)
+        if mode != InputMode.SEARCH:
             screen = QApplication.screenAt(self.frameGeometry().center()) or QApplication.primaryScreen()
             if screen is not None:
                 area = screen.availableGeometry()
-                self.move(
-                    max(area.left(), min(self.x(), area.right() - self.width() + 1)),
-                    max(area.top(), min(self.y(), area.bottom() - self.height() + 1)),
-                )
+                self.resize(min(self.width(), area.width()), min(self.height(), area.height()))
+                self.move(max(area.left(), min(self.x(), area.right() - self.width() + 1)),
+                          max(area.top(), min(self.y(), area.bottom() - self.height() + 1)))
+        self._focus_mode(clear_search=False)
+
+    def _focus_mode(self, *, clear_search):
+        if self.input_mode == InputMode.COMPOSITION:
+            self.composition.focus_editor()
+        elif self.is_continuous_mode():
             self.continuous_editor.focus_editor()
         else:
-            self.setMinimumSize(250, 150)
-            self.resize(self.search_size)
             self.search_box.setFocus()
+            if clear_search:
+                self.search_box.clear()
             self.update_list(self.search_box.text())
+
+    def moveEvent(self, event):
+        super().moveEvent(event)
+        if hasattr(self, "composition"):
+            self.composition.position_panel()
 
     def resume_continuous_after_paste_failure(self):
         if self.is_continuous_mode() and not self.isVisible():
             self.reappear_in_place()
 
+    def apply_global_font(self):
+        app = QApplication.instance()
+        baseline = app.property("quickkvSystemFont")
+        if baseline is None:
+            baseline = app.font()
+            app.setProperty("quickkvSystemFont", baseline)
+        from PySide6.QtGui import QFont
+        font = QFont(baseline)
+        family = getattr(self.settings, "font_family", "")
+        if family:
+            font.setFamily(family)
+        font.setPixelSize(self.settings.font_size)
+        app.setFont(font)
+        self.apply_theme()
+        self.composition.position_panel()
+
     def apply_theme(self):
+        font = QApplication.font()
+        family = getattr(self.settings, "font_family", "")
+        if family:
+            font.setFamily(family)
+        font.setPixelSize(self.settings.font_size)
+        self.setFont(font)
         theme = THEMES[self.settings.theme]
         font_size = self.settings.font_size
         self.title_label.setStyleSheet(f"color: {theme['title_color']}; font-size: {font_size-2}px; font-weight: normal; background-color: transparent; border: none; padding-left: 4px;")
@@ -406,7 +506,9 @@ class SearchPopup(QWidget):
             f" QPushButton:hover, QPushButton:focus {{ border-color: {theme['border_color']}; }}"
             f" QPushButton:checked {{ background: {theme['item_selected_bg']}; }}"
         )
+        self.composition_button.setStyleSheet(self.mode_button.styleSheet())
         self.continuous_editor.apply_theme()
+        self.composition.apply_theme()
         # self._update_pin_button_style() # 应用主题时更新图钉按钮样式
         self.list_widget.viewport().update() # 强制列表刷新以应用新主题
 
@@ -420,7 +522,7 @@ class SearchPopup(QWidget):
         #     log("下方空间不足，窗口向上翻转。"); pos_y = cursor_pos.y() - window_size.height() - 15
         if pos_x + window_size.width() > screen_geom.x() + screen_geom.width():
             pos_x = screen_geom.x() + screen_geom.width() - window_size.width()
-        if self.is_continuous_mode():
+        if self.input_mode != InputMode.SEARCH:
             pos_x = max(screen_geom.left(), pos_x)
             pos_y = max(screen_geom.top(), min(pos_y, screen_geom.bottom() - window_size.height() + 1))
         self.move(pos_x, pos_y)
@@ -430,18 +532,13 @@ class SearchPopup(QWidget):
         """在原位重新显示窗口，并抢夺焦点"""
         self.show()
         self.activateWindow()
-        if self.is_continuous_mode():
-            self.continuous_editor.focus_editor()
-            return
-        self.search_box.setFocus()
-        self.search_box.clear()
-        self.update_list("")
+        self._focus_mode(clear_search=True)
         self.list_widget.viewport().update()
 
     def gentle_reappear(self):
         """温柔地重新显示窗口，但不抢夺焦点"""
         log("执行温柔的窗口返回...")
-        if not self.is_continuous_mode():
+        if self.input_mode == InputMode.SEARCH:
             self.search_box.clear()
             self.update_list("")
         self.show() # 只显示，不激活，不设置焦点
@@ -453,6 +550,10 @@ class SearchPopup(QWidget):
 
     @Slot(str)
     def update_list(self, text):
+        if self.input_mode == InputMode.COMPOSITION:
+            if self.isVisible():
+                self.composition.refresh_lookup()
+            return
         if self.is_continuous_mode():
             if self.isVisible():
                 self.continuous_editor.refresh_candidates()

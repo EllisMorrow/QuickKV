@@ -46,6 +46,9 @@ from core.word_manager import WordManager
 from main_controller import MainController
 from ui.components import DisclaimerDialog
 from core.single_instance import SingleInstanceManager
+from core.composition.store import CompositionStore, STORAGE_ERRORS, replace_library
+from core.starter_content import initialize_starter_content
+from pathlib import Path
 
 
 def ensure_current_disclaimer_accepted(settings_manager, revision, dialog_factory=DisclaimerDialog):
@@ -110,19 +113,28 @@ if __name__ == "__main__":
         except Exception as e:
             log(f"创建自动加载文件夹失败: {e}")
 
-    # --- 确保默认词库存在 ---
+    try:
+        initialize_starter_content(CONFIG_FILE, WORD_FILE, COMPOSITION_DB, COMPOSITION_LIBRARY)
+    except STORAGE_ERRORS:
+        log("首次启动预设未能完整初始化。")
     if not os.path.exists(WORD_FILE):
         try:
-            with open(WORD_FILE, 'w', encoding='utf-8') as f:
-                f.write("- 恭喜，安装成功！这是一个示例词条\n按回车即可输出这块内容。\n\n- 这是带快捷码的第二条 ``k:test``\n只要在任何地方输入 test，就会自动替换为本行文本。\n")
-            log(f"已创建默认词库文件: {WORD_FILE}")
-        except Exception as e:
-            log(f"创建默认词库文件失败: {e}")
+            replace_library(Path(WORD_FILE), None, b"")
+        except OSError:
+            log("创建默认词库文件失败。")
 
     settings_manager = SettingsManager(CONFIG_FILE)
     ranking_state_manager = RankingStateManager(RANKING_STATE_FILE)
     template_renderer = TemplateRenderer()
-    word_manager = WordManager(settings_manager, ranking_state_manager)
+    composition_store = None
+    composition_blocked = False
+    if os.path.isfile(COMPOSITION_DB):
+        try:
+            composition_store = CompositionStore(COMPOSITION_DB, COMPOSITION_LIBRARY)
+            composition_store.recover_library()
+        except STORAGE_ERRORS:
+            composition_blocked = True
+    word_manager = WordManager(settings_manager, ranking_state_manager, composition_blocked=composition_blocked)
     controller = MainController(
         app,
         word_manager,
@@ -130,6 +142,7 @@ if __name__ == "__main__":
         ranking_state_manager,
         template_renderer,
         instance_manager=instance_manager,
+        composition_store=composition_store,
     )
     instance_manager.set_activation_handler(controller.activate_from_second_instance)
     
@@ -163,6 +176,10 @@ if __name__ == "__main__":
     show_disclaimer_action.triggered.connect(controller.show_disclaimer)
     menu.addAction(show_disclaimer_action)
     menu.addSeparator()
+
+    composition_hotkey_action = QAction("设置组合输入回载快捷键…", menu)
+    composition_hotkey_action.triggered.connect(controller.set_composition_hotkey)
+    menu.addAction(composition_hotkey_action)
 
     # --- 主要功能 ---
     controller.toggle_hotkeys_action = QAction("启用快捷键", checkable=True)
@@ -294,7 +311,7 @@ if __name__ == "__main__":
     menu.addAction(controller.show_source_action)
     menu.addSeparator()
 
-    font_size_action = QAction("设置字体大小(&F)..."); font_size_action.triggered.connect(controller.set_font_size); menu.addAction(font_size_action)
+    font_size_action = QAction("字体设置(&F)..."); font_size_action.triggered.connect(controller.set_font_size); menu.addAction(font_size_action)
 
     # --- 帮助 ---
     menu.addSeparator()

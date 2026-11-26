@@ -48,6 +48,8 @@ from core.clipboard_timestamps import ClipboardTimestampStore, content_key, utf8
 from core.transcription import transcribe, TranscriptionError
 from core.template_renderer import TemplateRenderer, TemplateRenderError
 from ui.search_popup import SearchPopup
+from core.composition.mode import InputMode
+from core.composition.store import CompositionStore, STORAGE_ERRORS
 from ui.components import HotkeyDialog, DisclaimerDialog, ScrollableMessageBox, get_disclaimer_html_text, EditDialog, TemplateInputDialog
 from services.hotkey_manager import NativeHotkeyManager
 from services.shortcut_listener import ShortcutListener
@@ -123,9 +125,21 @@ class MainController(QObject):
         """Save unchanged settings for actions such as restart."""
         return self._update_settings(notify=notify)
 
-    def __init__(self, app, word_manager, settings_manager, ranking_state_manager=None, template_renderer=None, instance_manager=None):
+    def __init__(self, app, word_manager, settings_manager, ranking_state_manager=None, template_renderer=None, instance_manager=None, composition_store=None):
         super().__init__(); self.app = app; self.word_manager = word_manager; self.settings = settings_manager; self.ranking_state = ranking_state_manager; self.template_renderer = template_renderer or TemplateRenderer(); self.instance_manager = instance_manager; self.menu = None; self.auto_library_menu = None
+        self._composition_store = composition_store
         self.popup = SearchPopup(self.word_manager, self.settings)
+        self.popup.apply_global_font()
+        composition = self.popup.composition
+        composition.factory = self.composition_storage
+        composition.expand_entry = self.expand_continuous_entry
+        composition.template_expand = self.render_template_output
+        composition.entry_inserted.connect(self.record_entry_usage)
+        composition.copy_requested.connect(self.copy_composition)
+        composition.submit_requested.connect(self.submit_composition)
+        composition.external_reload_requested.connect(lambda: self.capture_composition(use_previous=True))
+        composition.library_changed.connect(self.composition_library_changed)
+        self.word_manager.composition_writer = self.publish_composition_library
         self.popup.controller = self # 将 controller 实例传递给 popup
         self.show_popup_signal.connect(self.popup.show_and_focus)
         self.hide_popup_signal.connect(self.popup.hide)
@@ -137,7 +151,14 @@ class MainController(QObject):
 
         self.user32 = ctypes.windll.user32
         self.user32.GetForegroundWindow.restype = wintypes.HWND
+        self.user32.GetClipboardOwner.restype = wintypes.HWND
+        self.user32.GetClipboardSequenceNumber.restype = wintypes.DWORD
         self.quickkv_pid = os.getpid()
+        from services.composition_capture import CompositionCapture
+        self.composition_capture = CompositionCapture(self)
+        self.composition_capture.received.connect(self.open_composition_selection)
+        self.composition_capture.failed.connect(self.show_composition_capture_error)
+        self.composition_hotkey = None
         self.last_popup_target_hwnd = 0
         self.continuous_target = (0, 0)
         self.continuous_request = None
@@ -147,11 +168,12 @@ class MainController(QObject):
         self.continuous_paste_timer.timeout.connect(self._poll_continuous_paste)
         
         self.hotkey_manager = NativeHotkeyManager(self.settings.hotkey)
-        self.hotkey_manager.suppress_string_trigger = self.is_continuous_foreground
+        self.hotkey_manager.suppress_string_trigger = self.is_draft_foreground
         self.hotkey_manager.hotkey_triggered.connect(self.on_hotkey_triggered)
         self.hotkey_manager.hotkey_registration_failed.connect(self.on_hotkey_registration_failed)
         if self.settings.hotkeys_enabled:
             self.hotkey_manager.start()
+        self.configure_composition_hotkey(getattr(self.settings, "composition_hotkey", ""))
             
         # 初始化连续字符串盲打触发器
         self.hotkey_manager.update_string_trigger(
@@ -161,7 +183,7 @@ class MainController(QObject):
 
         # 新增：初始化快捷码监听器
         self.shortcut_listener = ShortcutListener(self.word_manager)
-        self.shortcut_listener.suppress_shortcuts = self.is_continuous_foreground
+        self.shortcut_listener.suppress_shortcuts = self.is_draft_foreground
         self.shortcut_listener.shortcut_matched.connect(self.on_shortcut_matched)
         # 快捷码监听在启动声明确认后由入口开启。
 
@@ -206,7 +228,9 @@ class MainController(QObject):
     @Slot()
     def on_clipboard_changed(self):
         """处理剪贴板数据变化信号（事件驱动）"""
-        if not self.settings.clipboard_memory_enabled:
+        if not self.settings.clipboard_memory_enabled or (
+            getattr(self, "composition_capture", None) and self.composition_capture.request
+        ):
             return
 
         # 检查剪贴板内容是否是文本
@@ -291,9 +315,9 @@ class MainController(QObject):
     def _is_quickkv_foreground(self, hwnd):
         return bool(hwnd) and self._get_window_process_id(hwnd) == self.quickkv_pid
 
-    def is_continuous_foreground(self, hwnd=None):
+    def is_draft_foreground(self, hwnd=None):
         # The native listeners call this off the GUI thread. Only read a Python flag.
-        return self.popup.continuous_input_visible and self._is_quickkv_foreground(
+        return self.popup.draft_input_visible and self._is_quickkv_foreground(
             self._get_foreground_hwnd() if hwnd is None else hwnd
         )
 
@@ -392,7 +416,7 @@ class MainController(QObject):
     def on_hotkey_triggered(self, trigger_id=0):
         # 这个信号现在是从 NativeHotkeyManager 线程发出的
         if not self.settings.hotkeys_enabled: return
-        if trigger_id == 9999 and self.is_continuous_foreground():
+        if trigger_id == 9999 and self.is_draft_foreground():
             return
         if self.popup.isVisible():
             log("热键触发：关闭窗口。"); self.hide_popup_signal.emit()
@@ -406,6 +430,7 @@ class MainController(QObject):
         """Bring the already-owned search window to the foreground via local IPC."""
         log("收到第二实例的激活请求。")
         if not self.popup.isVisible():
+            self.last_popup_target_hwnd = 0
             self._set_continuous_target(0)
         self.show_popup_signal.emit()
 
@@ -494,6 +519,12 @@ class MainController(QObject):
              self.stop_file_observer()
              self.start_file_observer()
 
+        composition_store = getattr(self, "_composition_store", None)
+        if composition_store is not None:
+            try:
+                self.word_manager.composition_blocked = composition_store.library_pending()
+            except STORAGE_ERRORS:
+                self.word_manager.composition_blocked = True
         self.word_manager.reload_all() # 核心：加载所有词库
         self.sync_clipboard_timestamps()
         if self.shortcut_listener and self.settings.shortcut_code_enabled:
@@ -532,6 +563,118 @@ class MainController(QObject):
     def expand_continuous_entry(self, block):
         return self.render_template_output(self._build_output_content(block['full_content'], block))
 
+    def composition_storage(self):
+        if self._composition_store is None:
+            self._composition_store = CompositionStore(COMPOSITION_DB, COMPOSITION_LIBRARY)
+        return self._composition_store
+
+    def publish_composition_library(self, before, after):
+        try:
+            self.composition_storage().publish_library(before, after, {})
+            return True
+        except STORAGE_ERRORS:
+            self.word_manager.composition_blocked = True
+            self.schedule_full_reload()
+            return False
+
+    def composition_library_changed(self):
+        self.word_manager.composition_blocked = False
+        self.schedule_full_reload()
+
+    def copy_composition(self, text, *, apply_rules=True):
+        workspace = self.popup.composition
+        if apply_rules and workspace.output_transcription and not workspace.session_id.startswith("reload-"):
+            text = self._transcribe_output(text)
+        if not text:
+            workspace.report("没有可复制的内容")
+            return False
+        result = self._copy_continuous_output(text)
+        workspace.report("已复制，草稿已保留" if result else "复制失败，草稿已保留")
+        return result
+
+    def submit_composition(self, text):
+        workspace = self.popup.composition
+        if workspace.session_id.startswith("reload-"):
+            if self.copy_composition(text, apply_rules=False):
+                workspace.report("已复制回载结果。请回到原应用核对选区后粘贴。", persistent=True)
+            return
+        if self.continuous_request or self.pending_paste_request or self.composition_capture.request:
+            workspace.report("另一个输出操作正在进行")
+            return
+        hwnd, pid = self.continuous_target
+        if not hwnd or self._get_window_process_id(hwnd) != pid:
+            self.copy_composition(text)
+            return
+        output = self._transcribe_output(text) if workspace.output_transcription else text
+        mode = self.settings.paste_mode
+        if not output:
+            workspace.report("转写后没有可输出内容")
+            return
+        if mode == PASTE_MODE_TYPING and any(char in output for char in "\r\n\t"):
+            self.copy_composition(output, apply_rules=False)
+            return
+        self.continuous_request = {
+            "target": (hwnd, pid), "draft": text, "output": output, "mode": mode,
+            "started_at": time.monotonic(), "stable_hits": 0, "composition": True,
+        }
+        self.popup.hide()
+        self.continuous_paste_timer.start()
+
+    def capture_composition(self, use_previous=False):
+        hwnd = self.last_popup_target_hwnd if use_previous else self._get_foreground_hwnd()
+        if not self.popup.composition.flush():
+            return
+        if self.continuous_request or self.pending_paste_request:
+            self.show_composition_capture_error("请等待当前落字完成。")
+            return
+        self.composition_capture.begin(hwnd)
+
+    def open_composition_selection(self, text):
+        self.popup.set_input_mode(InputMode.COMPOSITION)
+        self.popup.show_and_focus()
+        self.popup.composition.open_reload(text)
+
+    def show_composition_capture_error(self, message):
+        self.popup.set_input_mode(InputMode.COMPOSITION)
+        self.popup.show_and_focus()
+        self.popup.composition.report(message, persistent=True)
+
+    def configure_composition_hotkey(self, shortcut):
+        if self.composition_hotkey:
+            self.composition_hotkey.stop()
+            self.composition_hotkey = None
+        if not shortcut:
+            return True
+        manager = NativeHotkeyManager(shortcut)
+        valid = manager.validate_hotkey(shortcut)
+        if valid["normalized"] == self.hotkey_manager.hotkey_str:
+            return False
+        registered, _ = manager._preflight_hotkey_registration(valid)
+        if not registered:
+            return False
+        manager.hotkey_triggered.connect(lambda _: self.capture_composition())
+        manager.hotkey_registration_failed.connect(lambda _: self.show_composition_capture_error("无法注册回载快捷键。"))
+        self.composition_hotkey = manager
+        if self.settings.hotkeys_enabled:
+            manager.start()
+        return True
+
+    def set_composition_hotkey(self):
+        current = self.settings.composition_hotkey
+        shortcut, accepted = QInputDialog.getText(self.popup, "回载快捷键", "例如 Ctrl+Alt+R，留空关闭",
+                                                  text=current)
+        if not accepted:
+            return
+        shortcut = shortcut.strip().lower()
+        if shortcut == current:
+            return
+        if not self.configure_composition_hotkey(shortcut):
+            self.configure_composition_hotkey(current)
+            QMessageBox.warning(self.popup, "快捷键不可用", "请输入有效且尚未占用的系统快捷键。")
+            return
+        if not self._update_settings(composition_hotkey=shortcut):
+            self.configure_composition_hotkey(current)
+
     def _prepare_continuous_output(self, text):
         output = self._transcribe_output(text)
         if output == "":
@@ -546,7 +689,7 @@ class MainController(QObject):
             pyperclip.copy(text)
         except pyperclip.PyperclipException:
             self.ignore_next_clipboard_change = previous_ignore_state
-            log("连续联想的剪贴板写入失败。")
+            log("草稿的剪贴板写入失败。")
             return False
         return True
 
@@ -646,7 +789,7 @@ Add-Type -AssemblyName System.Windows.Forms
 Add-Type -Name NativeMethods -Namespace QuickKV -MemberDefinition @'
 [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
 [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hwnd, out uint pid);
-[DllImport("user32.dll")] public static extern int GetClipboardSequenceNumber();
+[DllImport("user32.dll")] public static extern uint GetClipboardSequenceNumber();
 [DllImport("user32.dll")] public static extern short GetAsyncKeyState(int key);
 '@
 {setup}
@@ -675,6 +818,14 @@ if ($targetProcessId -ne {pid} -or [QuickKV.NativeMethods]::GetClipboardSequence
         request, self.continuous_request = self.continuous_request, None
         self.continuous_process = None
         self.continuous_paste_timer.stop()
+        if request and request.get("composition"):
+            if not dispatched:
+                self.popup.reappear_in_place()
+            self.popup.composition.report(
+                "已发送落字，草稿已保留" if dispatched else (message or "落字未完成，草稿已保留，可复制整段。"),
+                persistent=not dispatched,
+            )
+            return
         editor = self.popup.continuous_editor
         editor.set_submission_pending(False)
         if dispatched:
@@ -1186,7 +1337,7 @@ if ($targetProcessId -ne {pid} -or [QuickKV.NativeMethods]::GetClipboardSequence
     def on_shortcut_matched(self, full_content, shortcut_code):
         """处理快捷码匹配成功的事件"""
         target_hwnd = self._capture_target_hwnd()
-        if self.is_continuous_foreground(target_hwnd):
+        if self.is_draft_foreground(target_hwnd):
             return
         log(f"主控制器收到快捷码匹配信号: {shortcut_code} | target_hwnd={target_hwnd}")
         QTimer.singleShot(
@@ -1195,7 +1346,7 @@ if ($targetProcessId -ne {pid} -or [QuickKV.NativeMethods]::GetClipboardSequence
         )
 
     def _commit_shortcut_match(self, full_content, shortcut_code, target_hwnd):
-        if self.is_continuous_foreground() or self.is_continuous_foreground(target_hwnd):
+        if self.is_draft_foreground() or self.is_draft_foreground(target_hwnd):
             return
         for _ in range(len(shortcut_code)):
             self.shortcut_listener.keyboard_controller.press(keyboard.Key.backspace)
@@ -1207,6 +1358,11 @@ if ($targetProcessId -ne {pid} -or [QuickKV.NativeMethods]::GetClipboardSequence
     def cleanup_and_exit(self):
         log("开始执行程序清理...")
         self._stop_continuous_paste()
+        self.composition_capture.stop()
+        if self.composition_hotkey:
+            self.composition_hotkey.stop()
+        if self.popup.composition.flush():
+            self.popup.composition.auto_backup()
         self.hotkey_manager.stop()
         if self.shortcut_listener:
             self.shortcut_listener.stop() # 退出时停止快捷码监听
@@ -1217,6 +1373,11 @@ if ($targetProcessId -ne {pid} -or [QuickKV.NativeMethods]::GetClipboardSequence
 
     @Slot()
     def confirm_exit(self):
+        if not self.popup.composition.flush():
+            return QMessageBox.question(
+                self.popup, "草稿尚未保存", "组合输入草稿仍未写入磁盘。仍然退出？",
+                QMessageBox.Yes | QMessageBox.No, QMessageBox.No,
+            ) == QMessageBox.Yes
         if not self.popup.continuous_editor.has_draft():
             return True
         return QMessageBox.question(
@@ -1256,10 +1417,14 @@ if ($targetProcessId -ne {pid} -or [QuickKV.NativeMethods]::GetClipboardSequence
                 hotkey=normalized_hotkey,
                 rollback_runtime=restored,
             ):
+                if getattr(self, "composition_hotkey", None):
+                    self.composition_hotkey.start()
                 log(f"快捷键已启用: {normalized_hotkey}")
         else:
             if self._update_settings(hotkeys_enabled=False):
                 self.hotkey_manager.unregister_all()
+                if getattr(self, "composition_hotkey", None):
+                    self.composition_hotkey.stop()
                 log("快捷键已禁用。")
         
         if hasattr(self, 'toggle_hotkeys_action'):
@@ -1303,15 +1468,64 @@ if ($targetProcessId -ne {pid} -or [QuickKV.NativeMethods]::GetClipboardSequence
         
     @Slot()
     def set_font_size(self):
-        current_size = self.settings.font_size
-        new_size, ok = QInputDialog.getInt(None, "设置字体大小", "请输入新的字体大小 (例如: 14):", current_size, 8, 72, 1)
-        
-        if ok and new_size != current_size:
-            if not self._update_settings(font_size=new_size):
-                return
-            log(f"字体大小已更新为: {new_size}")
-            self.popup.apply_theme()
-            QMessageBox.information(None, "成功", f"字体大小已设置为 {new_size}！")
+        selection = MainController.choose_font_settings(self)
+        if selection and self._update_settings(font_size=selection[0], font_family=selection[1]):
+            self.popup.apply_global_font()
+
+    def choose_font_settings(self):
+        from PySide6.QtGui import QFont
+        from PySide6.QtWidgets import QDialogButtonBox, QFontComboBox, QFormLayout, QSpinBox
+
+        dialog = QDialog(self.popup)
+        dialog.setWindowTitle("字体设置")
+        layout = QFormLayout(dialog)
+        family = QFontComboBox()
+        family.setEditable(True)
+        family.completer().setFilterMode(Qt.MatchContains)
+        family.lineEdit().setPlaceholderText("输入字体名称搜索")
+        size = QSpinBox()
+        size.setRange(8, 72)
+        size.setValue(self.settings.font_size)
+        system_font = self.app.property("quickkvSystemFont") or self.app.font()
+        family.setCurrentFont(QFont(self.settings.font_family) if self.settings.font_family else system_font)
+        use_default = not bool(self.settings.font_family)
+        preview = QLabel("中文：项目记录\nEnglish: QuickKV    0123456789\n组合词：优先+核对+完成")
+        preview.setWordWrap(True)
+        preview.setMinimumWidth(250)
+
+        def update():
+            font = family.currentFont()
+            font.setPixelSize(size.value())
+            preview.setFont(font)
+
+        def changed():
+            nonlocal use_default
+            use_default = False
+            update()
+
+        def reset():
+            nonlocal use_default
+            family.setCurrentFont(system_font)
+            size.setValue(14)
+            use_default = True
+            update()
+
+        family.currentFontChanged.connect(changed)
+        size.valueChanged.connect(update)
+        layout.addRow("字体", family)
+        layout.addRow("字号", size)
+        layout.addRow(preview)
+        actions = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
+        actions.button(QDialogButtonBox.Save).setText("保存")
+        actions.button(QDialogButtonBox.Cancel).setText("取消")
+        actions.addButton("恢复默认", QDialogButtonBox.ResetRole).clicked.connect(reset)
+        actions.accepted.connect(dialog.accept)
+        actions.rejected.connect(dialog.reject)
+        layout.addRow(actions)
+        update()
+        if dialog.exec() == QDialog.Accepted:
+            return size.value(), "" if use_default else family.currentFont().family()
+        return None
 
     @Slot()
     def toggle_highlight_matches(self):
@@ -1590,9 +1804,12 @@ if ($targetProcessId -ne {pid} -or [QuickKV.NativeMethods]::GetClipboardSequence
     def perform_restart(self):
         """执行重启操作"""
         log("执行重启...")
-        if not self._save_settings():
+        if not self._save_settings() or not self.popup.composition.flush():
             return
         self._stop_continuous_paste()
+        self.composition_capture.stop()
+        if self.composition_hotkey:
+            self.composition_hotkey.stop()
         self.popup.hide()
         self.hotkey_manager.stop()
         if self.shortcut_listener:
@@ -1614,6 +1831,9 @@ if ($targetProcessId -ne {pid} -or [QuickKV.NativeMethods]::GetClipboardSequence
                 if hasattr(self, 'toggle_hotkeys_action'):
                     self.toggle_hotkeys_action.setChecked(False)
                 hotkey_restore_failed = error_message
+
+        if self.settings.hotkeys_enabled and self.composition_hotkey:
+            self.composition_hotkey.start()
 
         self.hotkey_manager.update_string_trigger(
             self.settings.string_trigger_enabled,

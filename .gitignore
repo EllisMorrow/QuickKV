@@ -216,3 +216,15 @@ src/MD词库-需自动载入的请放入/
 src/剪贴板词库-勿删.md
 src/剪贴板词库.md
 *.bak
+
+# Portable QuickKV user data and local development evidence
+/用户数据/
+/MD词库-需自动载入的请放入/
+/私有开发资料/
+/组合输入备份/
+*.sqlite3
+*.sqlite3-journal
+*.sqlite3-wal
+*.sqlite3-shm
+*.quickkv-backup
+*.composition-recovery

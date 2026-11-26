@@ -103,6 +103,7 @@ class SettingsManager:
         self.hotkeys_enabled = self._getboolean('General', 'hotkeys_enabled', self.hotkeys_enabled)
         self.shortcut_code_enabled = self._getboolean('General', 'shortcut_code_enabled', self.shortcut_code_enabled)
         self.hotkey = self._get('General', 'hotkey', self.hotkey)
+        self.composition_hotkey = self._get('General', 'composition_hotkey', self.composition_hotkey)
         self.string_trigger_enabled = self._getboolean('General', 'string_trigger_enabled', self.string_trigger_enabled)
         self.string_trigger_str = self._get('General', 'string_trigger_str', self.string_trigger_str)
         self.paste_mode = self._get('Paste', 'mode', self.paste_mode)
@@ -112,6 +113,7 @@ class SettingsManager:
         self.height = self._getint('Window', 'height', self.height)
         self.theme = self._get('Theme', 'mode', self.theme)
         self.font_size = self._getint('Font', 'size', self.font_size)
+        self.font_family = self._get('Font', 'family', self.font_family)
         self.multi_word_search = self._getboolean('Search', 'multi_word_search', self.multi_word_search)
         self.pinyin_initial_search = self._getboolean('Search', 'pinyin_initial_search', self.pinyin_initial_search)
         self.highlight_matches = self._getboolean('Search', 'highlight_matches', self.highlight_matches)
@@ -141,6 +143,7 @@ class SettingsManager:
         self.hotkeys_enabled = True
         self.shortcut_code_enabled = True
         self.hotkey = 'ctrl+space'
+        self.composition_hotkey = ''
         self.string_trigger_enabled = False
         self.string_trigger_str = '//'
         self.paste_mode = PASTE_MODE_CTRL_V
@@ -148,6 +151,7 @@ class SettingsManager:
         self.height = 300
         self.theme = 'dark'
         self.font_size = 14
+        self.font_family = ""
         self.multi_word_search = True
         self.pinyin_initial_search = True
         self.highlight_matches = True
@@ -204,10 +208,12 @@ class SettingsManager:
         candidate['General']['transcription_enabled'] = str(self.transcription_enabled)
         candidate['General']['transcription_rules'] = json.dumps(self.transcription_rules, ensure_ascii=False).replace('%', '%%')
         candidate['General']['hotkey'] = self.hotkey
+        candidate['General']['composition_hotkey'] = self.composition_hotkey
         candidate['Window']['width'] = str(self.width)
         candidate['Window']['height'] = str(self.height)
         candidate['Theme']['mode'] = self.theme
         candidate['Font']['size'] = str(self.font_size)
+        candidate['Font']['family'] = self.font_family
         candidate['Search']['multi_word_search'] = str(self.multi_word_search)
         candidate['Search']['pinyin_initial_search'] = str(self.pinyin_initial_search)
         candidate['Search']['highlight_matches'] = str(self.highlight_matches) # 新增

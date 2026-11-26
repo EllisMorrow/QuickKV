@@ -267,13 +267,14 @@ class SettingsSaveFailureTests(unittest.TestCase):
         self.assertTrue(_stub_registry_restored)
 
     def test_font_size_failure_restores_value_and_does_not_claim_success(self):
-        settings = types.SimpleNamespace(font_size=14, save=lambda: False)
+        settings = types.SimpleNamespace(font_size=14, font_family="", save=lambda: False)
         controller = self._controller(settings)
 
-        with mock.patch.object(main_controller.QInputDialog, "getInt", return_value=(20, True)):
+        with mock.patch.object(main_controller.MainController, "choose_font_settings", return_value=(20, "Arial")):
             main_controller.MainController.set_font_size(controller)
 
         self.assertEqual(14, settings.font_size)
+        self.assertEqual("", settings.font_family)
         self.assertEqual(0, controller.popup.theme_updates)
         self.assertEqual(["warning"], [kind for kind, _ in _MessageBox.messages])
 
@@ -374,7 +375,10 @@ class SettingsSaveFailureTests(unittest.TestCase):
         popup.settings = types.SimpleNamespace(width=450, height=300, save=lambda: False)
         popup.width = lambda: 640
         popup.height = lambda: 480
-        popup.is_continuous_mode = lambda: False
+        popup.input_mode = search_popup.InputMode.SEARCH
+        popup.mode_sizes = {}
+        popup.size = lambda: (640, 480)
+        popup.composition = types.SimpleNamespace(flush=lambda: True)
 
         popup.hideEvent(object())
 

@@ -44,6 +44,8 @@ AUTO_LOAD_DIR = os.path.join(BASE_PATH, "MD词库-需自动载入的请放入")
 
 WORD_FILE = os.path.join(AUTO_LOAD_DIR, "词库.md")
 CONFIG_FILE = os.path.join(USER_DATA_DIR, "config.ini")
+COMPOSITION_DB = os.path.join(USER_DATA_DIR, "组合输入.sqlite3")
+COMPOSITION_LIBRARY = os.path.join(AUTO_LOAD_DIR, "组合输入.md")
 CLIPBOARD_HISTORY_FILE = os.path.join(AUTO_LOAD_DIR, "剪贴板词库-勿删.md")
 CLIPBOARD_TIMESTAMP_FILE = os.path.join(USER_DATA_DIR, "clipboard_timestamps.json")
 CLIPBOARD_TEXT_MAX_BYTES = 1 * 1024 * 1024
@@ -53,7 +55,7 @@ RANKING_STATE_FILE = os.path.join(USER_DATA_DIR, "ranking_state.json")
 ICON_PATH = resource_path("icon.png")
 
 DEBUG_MODE = True
-VERSION = "1.3.10"
+from version import VERSION
 DISCLAIMER_REVISION = "3"
 
 PASTE_MODE_CTRL_V = "ctrl_v"

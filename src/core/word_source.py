@@ -48,6 +48,7 @@ ALIAS_COMMAND_RE = re.compile(r'^bm\s*[:：](?![:：])\s*(.+)$', re.IGNORECASE)
 class WordSource:
     def __init__(self, file_path):
         self.file_path = file_path
+        self.publisher = None
         self.word_blocks = []
         self.source_revision = None
         self.load()
@@ -130,6 +131,12 @@ class WordSource:
 
     def add_entry(self, content):
         try:
+            if self.publisher is not None:
+                with open(self.file_path, "rb") as source:
+                    previous = source.read()
+                newline = "\r\n" if b"\r\n" in previous else "\n"
+                separator = "" if not previous or previous.endswith((b"\r", b"\n")) else newline
+                return self._atomic_write(previous.decode("utf8") + separator + content + newline, previous)
             with open(self.file_path, 'a', encoding='utf-8') as f:
                 f.write('\n' + content)
             return True
@@ -193,6 +200,8 @@ class WordSource:
         return path
 
     def _atomic_write(self, content, expected_source_bytes):
+        if getattr(self, "publisher", None) is not None:
+            return self.publisher(expected_source_bytes, content.encode("utf8"))
         directory = os.path.dirname(os.path.abspath(self.file_path))
         prefix = f".{os.path.basename(self.file_path)}."
         fd = None

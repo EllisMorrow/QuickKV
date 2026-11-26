@@ -44,7 +44,9 @@ from core.word_source import WordSource
 
 # --- 词库管理器 ---
 class WordManager:
-    def __init__(self, settings, ranking_state=None):
+    def __init__(self, settings, ranking_state=None, *, composition_blocked=False):
+        self.composition_blocked = composition_blocked
+        self.composition_writer = None
         self.settings = settings
         self.ranking_state = ranking_state
         self.sources = []
@@ -464,6 +466,11 @@ class WordManager:
             disabled_cached_paths.update(cached_paths)
             disabled_entry_ids.update(entry_ids)
             disabled_cache_complete = disabled_cache_complete and cache_complete
+        if getattr(self, "composition_blocked", False):
+            blocked = normalize_library_path(COMPOSITION_LIBRARY)
+            norm_to_original.pop(blocked, None)
+            disabled_cached_paths.add(blocked)
+            disabled_cache_complete = False
         unique_enabled_paths = set(norm_to_original.values())
         self.active_file_paths = set(norm_to_original.keys())
         self.sources = []
@@ -718,6 +725,9 @@ class WordManager:
         clipboard_norm_path = normalize_library_path(CLIPBOARD_HISTORY_FILE)
         if norm_search_path in self.active_file_paths or norm_search_path == clipboard_norm_path:
             new_source = WordSource(path)
+            composition_writer = getattr(self, "composition_writer", None)
+            if composition_writer is not None and norm_search_path == normalize_library_path(COMPOSITION_LIBRARY):
+                new_source.publisher = composition_writer
             self.sources.append(new_source) # 添加到列表中以备后用
             return new_source
             

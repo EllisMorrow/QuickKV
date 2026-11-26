@@ -92,9 +92,6 @@ class EditDialog(QDialog):
     def apply_theme(self, theme, font_size):
         self.setStyleSheet(f"background-color: {theme['bg_color']}; color: {theme['text_color']};")
         
-        # 针对代码/Markdown强制使用等宽字体族群，并增加行边距
-        font_family = 'Consolas, "Courier New", monospace, "Microsoft YaHei"'
-        
         self.text_edit.setStyleSheet(f"""
             QTextEdit {{
                 background-color: {theme['input_bg_color']};
@@ -102,7 +99,6 @@ class EditDialog(QDialog):
                 border: 1px solid {theme['border_color']};
                 border-radius: 6px;
                 padding: 10px;
-                font-family: {font_family};
                 font-size: {font_size}px;
                 selection-background-color: {theme['item_selected_bg']};
                 selection-color: {theme['item_selected_text']};
@@ -116,7 +112,6 @@ class EditDialog(QDialog):
                 border: 1px solid {theme['border_color']};
                 padding: 6px 16px;
                 border-radius: 4px;
-                font-family: "Microsoft YaHei";
             }}
             QPushButton:hover {{
                 background-color: {theme['item_hover_bg']};
