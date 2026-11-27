@@ -5,8 +5,8 @@ from collections import deque
 from dataclasses import dataclass, replace
 import time
 
-from PySide6.QtCore import QMimeData, Qt, Signal
-from PySide6.QtGui import QAction, QKeySequence, QTextCursor
+from PySide6.QtCore import QEvent, QMimeData, Qt, Signal
+from PySide6.QtGui import QAction, QFontMetricsF, QKeySequence, QTextCursor
 from PySide6.QtWidgets import QApplication, QPlainTextEdit
 
 from core.composition.document import Document, project, python_offset, qt_offset
@@ -47,6 +47,16 @@ class CompositionEditor(QPlainTextEdit):
         self.composing = False
         self.recognize_paste = True
         self.document().contentsChange.connect(self._accept_native_change)
+        self.update_tab_distance()
+
+    def update_tab_distance(self):
+        self.setTabStopDistance(4 * QFontMetricsF(self.font()).horizontalAdvance(" "))
+
+    def event(self, event):
+        handled = super().event(event)
+        if event.type() in (QEvent.FontChange, QEvent.ApplicationFontChange, QEvent.DevicePixelRatioChange, QEvent.ScreenChangeInternal):
+            self.update_tab_distance()
+        return handled
 
     @property
     def model(self):
@@ -313,6 +323,33 @@ class CompositionEditor(QPlainTextEdit):
     def line_ending(self):
         return self.model.breaks[0] if self.model.breaks else "\n"
 
+    def indentation_step(self, index, *, prefer_children=False):
+        item = self.model.list_item(index)
+        indent = item["indent"] if item else ""
+        peers = [(i, match["indent"]) for i in range(len(self.model.nodes))
+                 if i != index and (match := self.model.list_item(i))]
+        level = len(indent.expandtabs(4))
+        parent = next((prefix for i, prefix in reversed(peers)
+                       if i < index and len(prefix.expandtabs(4)) < level), None)
+        end = self.model.branch_bounds(index)[1]
+        children = [prefix[len(indent):] for i, prefix in peers
+                    if i > index and self.model.nodes[i].start < end
+                    and prefix.startswith(indent) and len(prefix) > len(indent)]
+        if prefer_children and children:
+            return min(children, key=lambda suffix: len((indent + suffix).expandtabs(4)))
+        if parent is not None and indent.startswith(parent):
+            return indent[len(parent):]
+        if "\t" in indent:
+            return "\t"
+        neighbors = sorted(peers, key=lambda peer: abs(peer[0] - index))
+        nearest = next((prefix for _, prefix in neighbors if prefix), "")
+        if nearest.startswith("\t"):
+            return "\t"
+        if nearest and all(prefix.startswith(" ") or not prefix for _, prefix in peers):
+            width = min(len(prefix) for _, prefix in peers if prefix)
+            return " " * min(width, len(indent) or width)
+        return "  "
+
     def add_sibling(self, *, at_cursor=False, index=None, child=False):
         index = self.current_line() if index is None else index
         start, end = self.model.line_bounds(index)
@@ -322,7 +359,7 @@ class CompositionEditor(QPlainTextEdit):
         indentation = item["indent"] if item else ""
         marker = item["marker"] if item and item["marker"] in "-+*" else "-"
         if child:
-            indentation += "  "
+            indentation += self.indentation_step(index, prefer_children=True)
         line = indentation + marker + " "
         if at_cursor:
             position = self.offsets()[1]
@@ -352,15 +389,20 @@ class CompositionEditor(QPlainTextEdit):
     def _indent_model(self, index, forward):
         start, end = self.model.branch_bounds(index)
         updated = self.model
+        step = self.indentation_step(index, prefer_children=forward)
+        item = self.model.list_item(index)
+        prefix = item["indent"] if item else ""
+        removed = prefix[:-len(step)] if prefix.endswith(step) else prefix
+        offset = len(prefix) if forward else len(removed)
         for node in reversed(self.model.nodes):
-            if start <= node.start < end or node.start == start == end:
-                if forward:
-                    updated = updated.splice(node.start, node.start, "  ")
-                else:
-                    content = updated.text[node.start:]
-                    amount = 1 if content.startswith("\t") else min(2, len(content) - len(content.lstrip(" ")))
-                    if amount:
-                        updated = updated.splice(node.start, node.start + amount, "")
+            if not (start <= node.start < end or node.start == start == end):
+                continue
+            position = node.start + offset
+            content = updated.text[node.start:]
+            if forward and content.startswith(prefix):
+                updated = updated.splice(position, position, step)
+            elif not forward and removed != prefix and content.startswith(prefix):
+                updated = updated.splice(position, position + len(step), "")
         return updated
 
     def indent_branch(self, forward, index=None):
@@ -370,7 +412,7 @@ class CompositionEditor(QPlainTextEdit):
         old_cursor = self.offsets()[1]
         old_item = self.model.list_item(index)
         new_item = updated.list_item(index)
-        shift = new_item.end() - old_item.end() if old_item and new_item else (2 if forward else 0)
+        shift = new_item.end() - old_item.end() if old_item and new_item else (len(self.indentation_step(index)) if forward else 0)
         self.apply(updated, min(len(updated.text), max(start, old_cursor + shift)))
 
     def delete_branch(self, index):

@@ -65,6 +65,181 @@ class CompositionPopupTests(unittest.TestCase):
         self.app.processEvents()
         return popup
 
+    def test_more_menu_opens_global_group_management_without_editing_draft(self):
+        from PySide6.QtCore import QTimer
+        popup = self.open()
+        popup.composition_button.click()
+        ui = popup.composition
+        self.assertFalse(ui.editor.model.tokens)
+        original = ui.editor.model
+
+        def trigger():
+            menu = self.app.activePopupWidget()
+            actions = {action.text(): action for action in menu.actions()}
+            menu.close()
+            self.assertNotIn("立即保存草稿", actions)
+            actions["管理词组"].trigger()
+
+        QTimer.singleShot(30, trigger)
+        QTest.mouseClick(ui.more, Qt.LeftButton)
+        self.assertEqual(ui.panel.mode, "config-global")
+        self.assertTrue(ui.panel.groups_button.isChecked())
+        self.assertFalse(ui.panel.config.isChecked())
+        close = next(b for b in ui.panel.findChildren(QPushButton)
+                     if b.accessibleName() == "关闭全局词组管理")
+        close.click()
+        self.assertTrue(ui.panel.isVisible())
+        self.assertFalse(ui.panel.groups_button.isChecked())
+        self.assertEqual(ui.panel.mode, "")
+        self.assertEqual(ui.editor.model, original)
+
+    def test_same_group_changes_main_five_times_without_collapsing(self):
+        popup = self.open()
+        popup.composition_button.click()
+        ui = popup.composition
+        self.assertTrue(ui.open_reload("- urgent+review+queued"))
+        token, = ui.editor.model.tokens
+        ui.panel.open_token(token, mode="main", locked=True)
+        group = ui.catalog.group("task")
+        for word in ("archive", "review", "archive", "review", "archive"):
+            button = next(b for b in ui.panel.findChildren(QPushButton)
+                          if b.isVisible() and b.text() == word)
+            button.click()
+            self.app.processEvents()
+            self.assertEqual(ui.editor.model.tokens[0].main.text, word)
+            self.assertEqual(ui.editor.model.tokens[0].prefixes, token.prefixes)
+            self.assertEqual(ui.editor.model.tokens[0].suffixes, token.suffixes)
+            self.assertTrue(ui.panel.main.isChecked())
+            self.assertTrue(ui.panel.isVisible())
+
+    def test_draft_failure_blocks_exit_paths_and_retry_preserves_caret(self):
+        from unittest.mock import patch
+        popup = self.open()
+        popup.composition_button.click()
+        ui = popup.composition
+        QTest.keyClicks(ui.editor, "prepare")
+        ui.editor.select_offsets(2, 5)
+        with patch.object(self.store, "save_draft", side_effect=OSError("isolated failure")):
+            popup.set_input_mode(InputMode.SEARCH)
+            self.assertEqual(popup.input_mode, InputMode.COMPOSITION)
+            self.assertFalse(popup.close())
+            self.assertTrue(ui.dirty)
+            self.assertTrue(ui.autosave.isActive())
+            self.assertIn("保存失败", ui.status.text())
+        ui.autosave.timeout.emit()
+        self.assertFalse(ui.dirty)
+        _, model, anchor, cursor = self.store.load_draft(ui.session_id)
+        self.assertEqual((model.raw, anchor, cursor), ("prepare", 2, 5))
+
+    def test_tab_draft_uses_font_metrics_and_keeps_original_line_endings(self):
+        from PySide6.QtGui import QFontMetricsF
+        popup = self.open()
+        popup.composition_button.click()
+        ui = popup.composition
+        raw = "- Root\r\n\t- review\r\n\t\t- nested\n- Outside"
+        self.assertTrue(ui.open_reload(raw))
+        editor = ui.editor
+        self.assertEqual(editor.model.raw, raw)
+        before = editor.tabStopDistance()
+        ui.settings.font_size = 29
+        ui.apply_theme()
+        self.app.processEvents()
+        self.assertGreater(editor.tabStopDistance(), before)
+        self.assertAlmostEqual(editor.tabStopDistance(), 4 * QFontMetricsF(editor.font()).horizontalAdvance(" "))
+        editor.add_sibling(index=2, child=True)
+        self.assertIn("\t\t\t- ", editor.model.raw)
+        editor.undo()
+        self.assertEqual(editor.model.raw, raw)
+        editor.indent_branch(False, 1)
+        self.assertIn("\r\n- review\r\n\t- nested", editor.model.raw)
+        editor.undo()
+        self.assertEqual(editor.model.raw, raw)
+
+    def test_assignment_dialog_searches_deep_terms_outside_module_scope(self):
+        from PySide6.QtCore import QTimer
+        from PySide6.QtWidgets import QDialog, QDialogButtonBox, QLineEdit, QListWidget
+        popup = self.open()
+        popup.composition_button.click()
+        ui = popup.composition
+        outside = Group("Outside", "outside", options=(
+            Option("Folder", "folder", category=True),
+            Option("Subfolder", "sub", parent="folder", category=True),
+            Option("Deep term", "deep", parent="sub"),
+        ))
+        catalog = ui.catalog.replace_group(outside)
+        catalog = catalog.replace_module(replace(catalog.module(), groups=("task",)))
+        self.assertTrue(ui.save_catalog(catalog))
+        observed = {}
+
+        def choose():
+            dialog = self.app.activeModalWidget()
+            if not isinstance(dialog, QDialog):
+                return
+            entries = dialog.findChild(QListWidget)
+            dialog.findChild(QLineEdit).setText("Deep term")
+            observed["rows"] = [entries.item(i).data(Qt.UserRole) for i in range(entries.count())]
+            entries.setCurrentRow(1)
+            observed["path"] = [b.toolTip() for b in dialog.findChildren(QPushButton) if b.isChecked()]
+            dialog.findChild(QDialogButtonBox).button(QDialogButtonBox.Ok).click()
+
+        QTimer.singleShot(30, choose)
+        self.assertEqual(ui.panel.choose_word_group("new term", ui.catalog.group("task"), "prefixes"), outside)
+        self.assertEqual(observed["rows"], ["", "outside"])
+        self.assertTrue(any("Folder" in path and "Deep term" in path for path in observed["path"]))
+        self.assertEqual(ui.catalog.group("outside"), outside)
+
+    def test_reload_center_uses_catalog_id_and_ignores_orphan_drafts(self):
+        from PySide6.QtCore import QTimer
+        from PySide6.QtWidgets import QDialog, QListWidget
+        popup = self.open()
+        popup.composition_button.click()
+        ui = popup.composition
+        self.store.save_draft("reload-orphan", 1, Document.from_raw("orphan"), 0, 0)
+        self.assertTrue(ui.open_reload("- sample body"))
+        identity = ui.session_id
+        ordinary = Module("回载只是名称", "plain")
+        renamed = replace(ui.catalog.module(identity), name="记录一")
+        self.assertTrue(ui.save_catalog(ui.catalog.replace_module(ordinary).replace_module(renamed)))
+        visible = []
+
+        def inspect():
+            dialog = self.app.activeModalWidget()
+            if isinstance(dialog, QDialog):
+                entries = dialog.findChild(QListWidget)
+                visible.extend((entries.item(i).data(Qt.UserRole), entries.item(i).text())
+                               for i in range(entries.count()))
+                dialog.reject()
+
+        QTimer.singleShot(30, inspect)
+        ui.choose_reload()
+        self.assertEqual(visible, [(identity, "记录一  ✓ 当前")])
+
+    def test_automatic_backup_includes_module_after_only_body_changes(self):
+        from unittest.mock import patch
+        from ui.composition_workflows import Workflows
+        popup = self.open()
+        self.store.set("backup_drafts", False)
+        popup.composition_button.click()
+        ui = popup.composition
+        backup = Backups(self.store, self.root / "automatic")
+        create = backup.create
+
+        def without_wait(*args, **kwargs):
+            return create(*args, **kwargs, minimum_interval=0)
+
+        with patch.object(ui, "backup_service", return_value=backup), patch.object(
+            backup, "create", side_effect=without_wait,
+        ):
+            QTest.keyClicks(ui.editor, "first")
+            Workflows.auto_backup(ui)
+            QTest.keyClicks(ui.editor, " update")
+            Workflows.auto_backup(ui)
+        entries = backup.entries()
+        self.assertEqual(len(entries), 2)
+        snapshot = [backup.read(path)[1]["drafts"][0][2]["document"] for path, meta in entries
+                    if meta["includes_drafts"]]
+        self.assertCountEqual([Document.load(record).raw for record in snapshot], ["first", "first update"])
+
     def test_three_modes_retain_separate_drafts_and_carets(self):
         popup = self.open()
         popup.mode_button.click()
@@ -319,7 +494,7 @@ class CompositionPopupTests(unittest.TestCase):
         self.assertIn("draft", [o.text for o in ui.catalog.group("priority").options])
         self.assertEqual(self.store.library_path.read_text(encoding="utf8"), "- draft\n")
 
-    def test_click_each_structured_part_and_open_nonmodal_preview(self):
+    def test_click_each_structured_part_and_copy_without_moving_editor(self):
         from PySide6.QtGui import QTextCursor
         popup = self.open()
         popup.composition_button.click()
@@ -330,17 +505,12 @@ class CompositionPopupTests(unittest.TestCase):
                       (Choice("on-site", "priority"),), (Choice("queued", "status"),))
         ui.editor.apply(doc.attach(token), 0)
         before = ui.editor.geometry()
-        QTest.mouseClick(ui.preview_button, Qt.LeftButton)
-        self.assertTrue(ui.preview_window.isVisible())
-        self.assertFalse(ui.preview_window.isModal())
-        self.assertTrue(ui.preview.isVisible())
-        self.assertFalse(ui.markdown_view.isVisible())
-        QTest.mouseClick(ui.preview_source, Qt.LeftButton)
-        self.assertTrue(ui.markdown_view.isVisible())
-        QTest.mouseClick(ui.preview_source, Qt.LeftButton)
-        self.assertTrue(ui.preview.isVisible())
+        copied = []
+        ui.copy_requested.connect(copied.append)
+        ui.copy()
+        ui.report("复制成功")
+        self.assertEqual(copied, [literal])
         self.assertEqual(ui.editor.geometry(), before)
-        self.assertEqual(ui.preview.toPlainText(), literal)
         for pos, expected in ((3, "prefixes"), (9, "main"), (16, "suffixes")):
             cursor = QTextCursor(ui.editor.document())
             cursor.setPosition(pos)
@@ -351,9 +521,8 @@ class CompositionPopupTests(unittest.TestCase):
         ui.dismiss_panel()
         ui.editor.select_offsets(len(literal))
         QTest.keyClicks(ui.editor, "!")
-        self.assertEqual(ui.preview.toPlainText(), literal + "!")
+        self.assertEqual(ui.output(), literal + "!")
         QTest.mouseClick(popup.mode_button, Qt.LeftButton)
-        self.assertFalse(ui.preview_window.isVisible())
         self.assertFalse(ui.panel.isVisible())
 
     def test_last_group_removal_does_not_reopen_unrestricted_search(self):
@@ -469,7 +638,8 @@ class CompositionPopupTests(unittest.TestCase):
         QTest.keyClick(ui.panel.query, Qt.Key_Return)
         self.assertEqual(ui.editor.model.raw, "archive")
         self.assertTrue(ui.panel.isVisible())
-        self.assertEqual(ui.panel.mode, "")
+        self.assertEqual(ui.panel.mode, "main")
+        self.assertTrue(ui.panel.main.isChecked())
         QTest.mouseClick(ui.panel.prefix, Qt.LeftButton)
         self.assertEqual(ui.panel.mode, "prefixes")
 
@@ -698,9 +868,9 @@ class CompositionPopupTests(unittest.TestCase):
                 if action:
                     selected_actions.append(title)
                     action.trigger()
-        QTimer.singleShot(25, lambda: activate_action("剪贴板新建回载草稿"))
+        QTimer.singleShot(25, lambda: activate_action("从剪贴板回载并新建模块"))
         QTest.mouseClick(ui.reload_button, Qt.LeftButton)
-        self.assertIn("剪贴板新建回载草稿", selected_actions)
+        self.assertIn("从剪贴板回载并新建模块", selected_actions)
         QTest.qWait(210)
         candidate, = ui.candidates
         self.assertEqual(candidate.literal, "晨检+校准")
@@ -873,7 +1043,6 @@ class CompositionPopupTests(unittest.TestCase):
         popup = self.open()
         QTest.mouseClick(popup.composition_button, Qt.LeftButton)
         ui = popup.composition
-        QTest.mouseClick(ui.preview_button, Qt.LeftButton)
         QTest.mouseClick(ui.template_button, Qt.LeftButton)
         ui.open_quick_modules()
         panel = ui.quick_module_window
@@ -887,7 +1056,6 @@ class CompositionPopupTests(unittest.TestCase):
         self.assertIs(popup.input_mode, InputMode.CONTINUOUS)
         self.assertFalse(panel.isVisible())
         self.assertFalse(ui.template_center.isVisible())
-        self.assertFalse(ui.preview_window.isVisible())
 
     def test_fragment_switch_and_close_flush_dirty_body_and_failed_save_keeps_it(self):
         from unittest.mock import patch
@@ -1011,10 +1179,10 @@ class CompositionPopupTests(unittest.TestCase):
         token, = ui.editor.model.tokens
         ui.panel.open_token(token, mode="prefixes", locked=True)
         QTest.keyClicks(ui.panel.query, "careful")
-        with patch.object(ui, "pick_group_chips", return_value=ui.catalog.group("status")) as pick, patch.object(ui, "confirm") as extra:
+        with patch.object(ui.panel, "choose_word_group", return_value=ui.catalog.group("status")) as pick, patch.object(ui, "confirm") as extra:
             QTest.keyClick(ui.panel.query, Qt.Key_Return)
         pick.assert_called_once()
-        self.assertIn("将新词「careful」加入词组", pick.call_args.args)
+        self.assertEqual(pick.call_args.args[0], "careful")
         extra.assert_not_called()
         updated, = ui.editor.model.tokens
         self.assertEqual(updated.prefixes[0].text, "careful")

@@ -22,7 +22,9 @@ class CompositionDemoTests(unittest.TestCase):
             store = CompositionStore(root / "用户数据/组合输入.sqlite3",
                                      root / "MD词库-需自动载入的请放入/组合输入.md")
             catalog = Catalog.load(store.get("catalog"))
-            self.assertEqual(len(catalog.modules), 5)
+            self.assertEqual(len(catalog.modules), 8)
+            self.assertEqual(sum(m.id.startswith("reload-") for m in catalog.modules), 3)
+            self.assertIn("\t\t\t\t- C", store.load_draft("reload-round8-tabs")[1].raw)
             self.assertFalse(store.load_draft("round4")[1].tokens[0].main.group_id)
             self.assertEqual(sum(g.name == "校准标签" for g in catalog.groups), 2)
             self.assertEqual(len(catalog.group(TIMESTAMP_ID).options), 10)

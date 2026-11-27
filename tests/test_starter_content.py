@@ -1,6 +1,7 @@
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
@@ -24,21 +25,43 @@ class StarterContentTests(unittest.TestCase):
 
     def test_empty_installation_has_real_words_and_structured_examples_once(self):
         self.assertTrue(initialize_starter_content(*self.paths))
-        source = WordSource(str(self.words))
+        source = WordSource(str(self.special))
         source.load()
-        self.assertEqual(len(source.word_blocks), 18)
+        self.assertEqual(len(source.word_blocks), 216)
         self.assertEqual(source.word_blocks[0]["parent"], "收到，谢谢！")
         store = CompositionStore(self.database, self.special)
         catalog = Catalog.load(store.get("catalog"))
         self.assertEqual(catalog.module().name, "日常速记")
         self.assertEqual(len(store.load_draft(catalog.selected_module)[1].tokens), 2)
-        self.assertEqual(len(store.get("templates")), 2)
-        self.assertFalse(self.special.exists())
+        self.assertEqual(len(store.get("templates")), 14)
+        self.assertEqual(len(catalog.modules), 8)
+        self.assertEqual(len(catalog.groups), 29)
+        self.assertEqual(store.get("starter_state"), "complete")
         original = self.database.read_bytes()
+        self.special.unlink()
+        self.assertFalse(initialize_starter_content(*self.paths))
+        self.assertFalse(self.special.exists())
         self.words.write_text("- 用户编辑", encoding="utf8")
         self.assertFalse(initialize_starter_content(*self.paths))
         self.assertEqual(self.words.read_text(encoding="utf8"), "- 用户编辑")
         self.assertEqual(self.database.read_bytes(), original)
+
+    def test_interrupted_first_run_resumes_only_marked_database(self):
+        with patch.object(CompositionStore, "publish_library", side_effect=OSError("isolated write failure")):
+            with self.assertRaises(OSError):
+                initialize_starter_content(*self.paths)
+        self.assertFalse(self.special.exists())
+        self.assertTrue(initialize_starter_content(*self.paths))
+        store = CompositionStore(self.database, self.special)
+        self.assertEqual(store.get("starter_state"), "complete")
+
+    def test_existing_database_without_marker_is_left_byte_identical(self):
+        store = CompositionStore(self.database, self.special)
+        store.set("custom", "preserve this record")
+        before = self.database.read_bytes()
+        self.assertFalse(initialize_starter_content(*self.paths))
+        self.assertEqual(self.database.read_bytes(), before)
+        self.assertFalse(self.special.exists())
 
     def test_existing_config_or_other_markdown_skips_startup_seeding(self):
         self.config.parent.mkdir()

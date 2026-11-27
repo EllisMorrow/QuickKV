@@ -87,6 +87,11 @@ def seed(root):
     modules = (*modules, Module("空白模块", "blank"), Module("组合词验证", "round4", ("task", "review", "artifact")))
     groups.extend((Group("校准标签", "example-name-a", options=(Option("频率"),)),
                    Group("校准标签", "example-name-b", options=(Option("刻度"),))))
+    modules += (
+        Module("回载 · 层级检查", "reload-round8-tabs"),
+        Module("回载 · 状态更新", "reload-round5-exercise"),
+        Module("校验记录", "reload-round7-exercise"),
+    )
     catalog = Catalog((*groups, *defaults.groups), modules, "project")
     catalog.validate()
     templates, frames = {}, {}
@@ -135,6 +140,12 @@ def seed(root):
     store.save_draft("reload-round6-exercise", 1, round6, 0, 0)
     round7 = Document.from_raw("- 晨检+校验、编审+归档\r\n- 外联+检查+待签\r\n")
     store.save_draft("reload-round7-exercise", 1, round7, 0, 0)
+    tabs = Document.from_raw(
+        "- 任务记录\r\n\t- 常规+检查+待办\r\n\t- 优先+审核+进行中\r\n"
+        "\t\t- A\r\n\t\t\t- B\r\n\t\t\t\t- C\r\n"
+        "\t- 1\r\n\t\t- 2\r\n\t\t\t- 3\r\n- X"
+    )
+    store.save_draft("reload-round8-tabs", 1, tabs, 0, 0)
     terms = dict.fromkeys(o.text for g in groups if g.kind == "ordinary" for o in g.values())
     store.publish_library(None, "".join(f"- {term}\n" for term in terms).encode("utf8"), {
         "catalog": catalog.to_record(), "templates": templates, "frameworks": frames,

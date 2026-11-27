@@ -144,7 +144,8 @@ class ClipboardCaptureSafetyTests(unittest.TestCase):
             record_entry_usage=lambda block: None,
             ignore_next_clipboard_change=False,
             last_popup_target_hwnd=0,
-            schedule_paste=lambda target_hwnd, origin: None,
+            schedule_paste=lambda target_hwnd, origin, **kwargs: None,
+            _verify_paste_clipboard=lambda text: 1,
         )
         controller._transcribe_output = types.MethodType(module.MainController._transcribe_output, controller)
 

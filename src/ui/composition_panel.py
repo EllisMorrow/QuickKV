@@ -7,7 +7,7 @@ from datetime import datetime
 from PySide6.QtCore import QEvent, QMimeData, QPoint, QPointF, QRect, QSize, Qt, QTimer
 from PySide6.QtGui import QColor, QDrag, QFont, QTextLayout
 from PySide6.QtWidgets import (
-    QApplication, QFrame, QHBoxLayout, QInputDialog, QLabel, QLayout, QLineEdit,
+    QApplication, QDialog, QDialogButtonBox, QFrame, QHBoxLayout, QInputDialog, QLabel, QLayout, QLineEdit,
     QListWidget, QListWidgetItem, QMenu, QPushButton, QScrollArea, QSizePolicy, QToolButton,
     QVBoxLayout, QWidget, QTextBrowser, QStyledItemDelegate, QStyle, QStyleOptionViewItem,
 )
@@ -367,6 +367,9 @@ class CompositionPanel(QFrame):
 
     def open_group_management(self):
         self.locked = True
+        if self.mode == "config-global":
+            self.set_mode("")
+            return
         self.selected_group = self.token.main.group_id or self.main_group
         self.parent_option = ""
         self.set_mode("config-global")
@@ -443,7 +446,9 @@ class CompositionPanel(QFrame):
         for mode, widget in (("prefixes", self.prefix), ("main", self.main), ("suffixes", self.suffix),
                              ("config", self.config)):
             widget.setCheckable(True)
-            widget.setChecked(self.mode.startswith(mode))
+            widget.setChecked(self.mode.startswith(mode) and not self.mode.startswith("config-global"))
+        self.groups_button.setCheckable(True)
+        self.groups_button.setChecked(self.mode.startswith("config-global"))
         self.groups_button.setVisible(self.mode != "suggestions")
         self.config.setText("完成" if self.mode.startswith("config-") and not self.mode.startswith("config-global") else "配置")
         if self.mode.startswith("config-"):
@@ -516,7 +521,8 @@ class CompositionPanel(QFrame):
             if self.mode == "main":
                 button(self.body_layout, "返回默认展示", lambda: self.browse_group(""))
         self.query = QLineEdit()
-        self.query.setPlaceholderText(f"查找{role}、词组或词库")
+        self.query.setPlaceholderText(f"新建或查找{role}、词组或词库")
+        self.query.setToolTip(self.query.placeholderText())
         self.query.setClearButtonEnabled(True)
         self.query.installEventFilter(self)
         self.body_layout.addWidget(self.query)
@@ -762,10 +768,10 @@ class CompositionPanel(QFrame):
                 item = QListWidgetItem(f"显示更多（共 {len(options)} 项）", self.results)
                 item.setData(Qt.UserRole, ("more", self.result_limit))
             if query and group.kind in ("ordinary", "number"):
-                item = QListWidgetItem(f"＋ 新建词组「{query}」", self.results)
+                item = QListWidgetItem(f"＋ 新建并使用词组「{query}」", self.results)
                 item.setData(Qt.UserRole, ("new-group", query))
                 item.setToolTip(query)
-                item = QListWidgetItem(f"确认使用「{query}」", self.results)
+                item = QListWidgetItem(f"使用并建立新词「{query}」", self.results)
                 item.setData(Qt.UserRole, ("temporary", query))
                 item.setToolTip(query)
         else:
@@ -802,12 +808,23 @@ class CompositionPanel(QFrame):
                     item.setData(SOURCE_ROLE, f"{'原词条' if self.complex_library_entry(entry) else '词'} · {source or '普通词库'} ·")
                     item.setData(Qt.UserRole, ("entry", entry))
                     item.setToolTip(entry.get("full_content", ""))
-                item = QListWidgetItem(f"＋ 新建词组「{query}」", self.results)
+                item = QListWidgetItem(f"＋ 新建并使用词组「{query}」", self.results)
                 item.setData(Qt.UserRole, ("new-group", query))
                 item.setToolTip(query)
-                item = QListWidgetItem(f"确认使用「{query}」", self.results)
+                item = QListWidgetItem(f"使用并建立新词「{query}」", self.results)
                 item.setData(Qt.UserRole, ("temporary", query))
                 item.setToolTip(query)
+        if query:
+            exact_word = any(option.value() == query for group in self.catalog.groups for option in group.values())
+            exact_word = exact_word or any(self.workspace.entry_text(entry) == query
+                                          for entry in self.workspace.search_library(query))
+            for row in range(self.results.count() - 1, -1, -1):
+                item = self.results.item(row)
+                action, _ = item.data(Qt.UserRole)
+                if action == "new-group" and any(group.name == query for group in self.catalog.groups):
+                    self.results.takeItem(row)
+                elif action == "temporary" and exact_word:
+                    self.results.takeItem(row)
         if query and highlights is not None:
             from ui.candidate_text import match_colors
             from core.config import THEMES
@@ -982,10 +999,114 @@ class CompositionPanel(QFrame):
             return
         catalog = self.catalog.replace_group(group)
         module = catalog.module()
+        if not self.workspace.confirm(f"将「{group.name}」加入当前模块「{module.name}」的主词范围吗？"):
+            return
         if module.groups or module.scope_limited:
             catalog = catalog.replace_module(replace(module, groups=(*module.groups, group.id)))
         if self.save_catalog(catalog):
             self.browse_group(group.id)
+
+    def choose_word_group(self, text, host, side):
+        groups = self.catalog.groups
+        linked = set(getattr(host, side)) if host else set()
+        names = {group.name for group in groups if sum(other.name == group.name for other in groups) > 1}
+        dialog = QDialog(self)
+        dialog.setWindowTitle(f"将新词「{text}」加入词组")
+        dialog.resize(560, 330)
+        layout = QVBoxLayout(dialog)
+        query = QLineEdit()
+        query.setPlaceholderText("搜索词组或组内词")
+        query.setClearButtonEnabled(True)
+        layout.addWidget(query)
+        row = QHBoxLayout()
+        entries = make_list()
+        row.addWidget(entries, 2)
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        preview = QWidget()
+        chips = ChipLayout()
+        preview.setLayout(chips)
+        scroll.setWidget(preview)
+        row.addWidget(scroll, 3)
+        layout.addLayout(row, 1)
+        name = QLineEdit()
+        name.setPlaceholderText("新词组名称")
+        layout.addWidget(name)
+        note = QLabel()
+        note.setWordWrap(True)
+        layout.addWidget(note)
+        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        buttons.button(QDialogButtonBox.Ok).setText("确定")
+        buttons.button(QDialogButtonBox.Cancel).setText("取消")
+        layout.addWidget(buttons)
+        buttons.accepted.connect(dialog.accept)
+        buttons.rejected.connect(dialog.reject)
+        selected_id = None
+        hits = {}
+
+        def show_preview():
+            nonlocal selected_id
+            item = entries.currentItem()
+            if item is not None:
+                selected_id = item.data(Qt.UserRole)
+            clear_layout(chips)
+            group = self.catalog.group(selected_id)
+            is_new = item is not None and selected_id == ""
+            name.setVisible(is_new)
+            reason = ""
+            if group:
+                if group.kind != "ordinary":
+                    reason = "此类型的词组无法加入普通词汇。"
+                elif host and group.id == host.id:
+                    reason = "主词组不能关联自身。"
+                for option in group.options:
+                    label = self.option_breadcrumb(group, option)
+                    chip = QPushButton(label)
+                    chips.addWidget(chip)
+                    chip.setToolTip(label)
+                    chip.setCheckable(True)
+                    chip.setChecked(option in hits.get(group.id, ()))
+                    chip.setAttribute(Qt.WA_TransparentForMouseEvents)
+                    chip.setFocusPolicy(Qt.NoFocus)
+            note.setText(reason or (f"将加入「{text}」。" if item else "请选择词组。"))
+            buttons.button(QDialogButtonBox.Ok).setEnabled(
+                item is not None and not reason and (not is_new or bool(name.text().strip())))
+
+        def refresh():
+            needle = query.text().strip()
+            hits.clear()
+            ids = self.workspace.matching_group_names(needle, groups) if needle else {g.id for g in groups}
+            if needle:
+                for group, option in self.workspace.group_matches(needle, groups):
+                    hits.setdefault(group.id, []).append(option)
+                for group in groups:
+                    if any(option.source for option in group.options):
+                        hits.setdefault(group.id, []).extend(
+                            option for option in self.workspace.search_options(group, needle)
+                            if option not in hits.get(group.id, ()))
+            values = [("", "＋ 为词条新建词组…")]
+            for group in groups:
+                if group.id in ids or hits.get(group.id):
+                    detail = (f" · {group.id[:8]}" if group.name in names else "")
+                    detail += (" · 已引用" if group.id in linked else "")
+                    detail += ({"number": " · 数值组", "timestamp": " · 时间戳组"}.get(group.kind, ""))
+                    values.append((group.id, group.name + detail))
+            entries.blockSignals(True)
+            fill_list(entries, values, selected_id)
+            if selected_id is None:
+                entries.setCurrentRow(1 if len(values) > 1 else 0)
+            entries.blockSignals(False)
+            show_preview()
+
+        entries.currentItemChanged.connect(lambda *_: show_preview())
+        query.textChanged.connect(refresh)
+        name.textChanged.connect(lambda *_: show_preview())
+        name.setText(text)
+        refresh()
+        query.setFocus()
+        if dialog.exec() != QDialog.Accepted:
+            return None
+        return self.catalog.group(selected_id) if selected_id else Group(name.text().strip())
 
     def apply_modifier_result(self, group, option=None, *, create=False):
         side = self.mode
@@ -1009,14 +1130,7 @@ class CompositionPanel(QFrame):
         explicit_assignment = create
         role = "前缀" if side == "prefixes" else "后缀"
         if create:
-            linked = getattr(host, side)
-            candidates = sorted((g for g in catalog.groups if g.kind == "ordinary" and g.id != host.id),
-                                key=lambda g: g.id not in linked)
-            new = Group(f"{host.name} · {role}")
-            options = [(g.id, ("✓ " if g.id in linked else "") + g.name, g) for g in candidates]
-            options.append((new.id, "为词条新建词组…", new))
-            group = self.workspace.pick_group_chips(f"将新词「{option.text}」加入词组", options,
-                explanation=f"确认后将新词加入所选词组，并在需要时引用到当前{role}。共享规则适用于引用它的模块，已有正文保留。")
+            group = self.choose_word_group(option.text, host, side)
             if group is None:
                 return
             existing = next((value for value in group.values() if value.text == option.text), None)
@@ -1032,13 +1146,18 @@ class CompositionPanel(QFrame):
         references = getattr(host, side)
         if group.id not in references:
             references = (*references, group.id)
-        if not explicit_assignment and not self.workspace.confirm(f"将「{group.name}」用于「{host.name}」的{role}？\n引用此主词组的模块会共享新规则，已有正文保留。"):
+        if not explicit_assignment and not self.workspace.confirm(f"将「{group.name}」词组用于「{main.text}」主词的{role}词组吗？"):
             return
         host = replace(host, **{side: references})
         catalog = catalog.replace_group(group).replace_group(host)
         module = catalog.module()
         if (module.groups or module.scope_limited) and host.id not in module.groups:
             catalog = catalog.replace_module(replace(module, groups=(*module.groups, host.id)))
+        if option is None and self.token.main.group_id:
+            if self.save_catalog(catalog):
+                self.query.clear()
+                self.rebuild_timer.start()
+            return
         token = replace(self.token, main=main)
         if option is not None:
             token = choose_modifier(token, side, group.choice(option, datetime.now()), references)
@@ -1237,15 +1356,15 @@ class CompositionPanel(QFrame):
         transaction = (catalog or self.catalog, (word,)) if word is not None else None
         if discarded and not self.workspace.confirm(f"切换主词组将移除 {discarded} 个不兼容的修饰值，可撤销。"):
             return
+        previous_group = self.token.main.group_id
         if self.workspace.apply_token(updated, catalog_update=transaction):
-            self.main_group = choice.group_id
-            self.selected_group = ""
-            self.parent_option = ""
-            self.expanded = False
-            self.positions.clear()
-            self.set_mode("")
-            self.workspace.window().activateWindow()
-            self.workspace.editor.setFocus()
+            if previous_group != choice.group_id:
+                self.main_group = choice.group_id
+                self.selected_group = ""
+                self.parent_option = ""
+                self.expanded = False
+                self.positions.clear()
+            self.set_mode("main")
 
     def attach_library_entry(self):
         item = self.results.currentItem()
@@ -1439,6 +1558,14 @@ class CompositionPanel(QFrame):
         title.setProperty("compositionContext", True)
         title.setWordWrap(True)
         title.setToolTip(title.text())
+        if side == "global":
+            header = QHBoxLayout()
+            header.addWidget(title, 1)
+            close = button(header, "×", lambda: self.set_mode(""))
+            close.setAccessibleName("关闭全局词组管理")
+            self.body_layout.addLayout(header)
+        else:
+            self.body_layout.addWidget(title)
         if side == "main" and host and getattr(self, "_config_host", None) != host.id:
             self.selected_group = host.id
             self._config_host = host.id

@@ -1,5 +1,7 @@
 import html
 
+from ui.output_feedback import OutputFeedback
+
 from PySide6.QtCore import QEvent, Qt, QTimer, Signal
 from PySide6.QtGui import QKeySequence, QTextCursor
 from PySide6.QtWidgets import (
@@ -72,11 +74,14 @@ class ContinuousEditor(QWidget):
 
         self.lookup_button = QPushButton("找词")
         self.lookup_button.setToolTip("找词（Ctrl+J）")
-        self.copy_button = QPushButton("复制整段")
+        self.copy_button = QPushButton("复制")
         self.recover_button = QPushButton("恢复上次草稿")
         self.send_button = QPushButton("落字")
-        self.set_target_label("")
-        footer = QHBoxLayout()
+        footer_widget = QWidget(self)
+        footer_widget.setObjectName("editorOutputFooter")
+        footer_widget.setStyleSheet("QWidget#editorOutputFooter { border: none; background: transparent; }")
+        footer = QHBoxLayout(footer_widget)
+        footer.setContentsMargins(0, 0, 0, 0)
         footer.setSpacing(4)
         footer.addWidget(self.lookup_button)
         footer.addWidget(self.copy_button)
@@ -87,7 +92,8 @@ class ContinuousEditor(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(4)
         layout.addWidget(self.editor, 1)
-        layout.addLayout(footer)
+        layout.addWidget(footer_widget)
+        self.output_status = OutputFeedback(footer_widget)
 
         self._timer = QTimer(self, singleShot=True, interval=160)
         self._timer.timeout.connect(self._refresh_results)
@@ -145,11 +151,8 @@ class ContinuousEditor(QWidget):
         self._update_preview()
         self._position_candidates()
 
-    def set_target_label(self, title):
-        short_title = title if len(title) <= 12 else title[:11] + "…"
-        self.send_button.setText(f"落字到 {short_title.replace('&', '&&')}" if title else "落字")
-        target = f"落字到 {title}" if title else "落字（尚未确认目标窗口）"
-        self.send_button.setToolTip(f"<qt>{html.escape(target)} · Ctrl+Enter</qt>")
+    def report_output(self, text):
+        self.output_status.display(text)
 
     def focus_editor(self):
         self.editor.setFocus()

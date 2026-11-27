@@ -5,10 +5,10 @@ from dataclasses import replace
 import hashlib
 
 from PySide6.QtCore import QEvent, QPoint, QTimer, Qt, Signal
-from PySide6.QtGui import QTextCursor, QTextDocument
+from PySide6.QtGui import QTextCursor
 from PySide6.QtWidgets import (
     QApplication, QDialog, QHBoxLayout, QLabel, QLineEdit, QListWidget, QMenu,
-    QFrame, QMessageBox, QPlainTextEdit, QTextBrowser, QVBoxLayout, QWidget,
+    QFrame, QMessageBox, QVBoxLayout, QWidget,
 )
 
 from core.continuous_matcher import ContinuousMatcher
@@ -18,12 +18,7 @@ from core.composition.store import CompositionStorageError, LibraryConflict, STO
 from ui.composition_editor import CompositionEditor, EditorState
 from ui.composition_panel import CompositionPanel, button, fill_list
 from ui.composition_workflows import Workflows
-
-
-class MarkdownView(QTextBrowser):
-    def loadResource(self, resource_type, name):
-        # Rendering a draft must not fetch its linked or embedded content.
-        return None
+from ui.output_feedback import OutputFeedback
 
 
 class CompositionWorkspace(QWidget, Workflows):
@@ -44,7 +39,7 @@ class CompositionWorkspace(QWidget, Workflows):
         self.continuous_matches = ()
         self.continuous_range = None
         self.catalog = Catalog.defaults()
-        self.factory = self.store = self.expand_entry = None
+        self.factory = self.store = self.expand_entry = self.set_output_transcription = None
         self.initialized = self.dirty = self.loading = self.context_active = self.has_conflict = False
         self.session_id = self.catalog.selected_module
         self.revision = 0
@@ -99,46 +94,23 @@ class CompositionWorkspace(QWidget, Workflows):
         layout.addLayout(edits)
         layout.addWidget(self.editor, 1)
 
-        self.preview_window = QDialog(self, Qt.Tool)
-        self.preview_window.setWindowTitle("Markdown 预览（只读）")
-        self.preview_window.resize(420, 345)
-        self.preview_window.setAttribute(Qt.WA_ShowWithoutActivating)
-        self.preview_window.setAttribute(Qt.WA_WindowPropagation)
-        self.preview_window.finished.connect(lambda _: self.preview_button.setChecked(False))
-        preview_layout = QVBoxLayout(self.preview_window)
-        self.preview = QPlainTextEdit()
-        self.preview.setReadOnly(True)
-        self.preview.setAccessibleName("Markdown 输出预览")
-        preview_options = QHBoxLayout()
-        self.preview_source = button(preview_options, "源码", self.select_preview_view)
-        self.preview_source.setCheckable(True)
-        self.preview_source.setChecked(True)
-        preview_options.addStretch()
-        preview_layout.addLayout(preview_options)
-        self.markdown_view = MarkdownView()
-        self.markdown_view.setOpenLinks(False)
-        self.markdown_view.setOpenExternalLinks(False)
-        preview_layout.addWidget(self.markdown_view)
-        preview_layout.addWidget(self.preview)
-        self.select_preview_view()
-        self.status = QLabel()
-        self.status.setTextFormat(Qt.PlainText)
-        self.status.hide()
-        layout.addWidget(self.status)
-        footer = QHBoxLayout()
-        self.preview_button = button(footer, "Markdown 预览", self.toggle_preview)
-        self.preview_button.setCheckable(True)
+        footer_widget = QWidget(self)
+        footer_widget.setObjectName("editorOutputFooter")
+        footer_widget.setStyleSheet("QWidget#editorOutputFooter { border: none; background: transparent; }")
+        footer = QHBoxLayout(footer_widget)
+        footer.setContentsMargins(0, 0, 0, 0)
         footer.addStretch()
-        button(footer, "复制整段", self.copy)
-        self.submit_button = button(footer, "落字到…", self.submit)
-        self.submit_button.setToolTip("落字（Ctrl+Enter）")
+        button(footer, "复制", self.copy)
+        self.submit_button = button(footer, "落字", self.submit)
         self.submit_button.setObjectName("compositionSubmit")
-        layout.addLayout(footer)
+        layout.addWidget(footer_widget)
+        self.status = OutputFeedback(footer_widget)
 
         self.panel = CompositionPanel(self)
         self.autosave = self.timer(350, self.flush)
         self.max_save_delay = self.timer(2000, self.flush)
-        self.status_timer = self.timer(4500, self.status.hide)
+        self.backup_timer = QTimer(self, interval=900000)
+        self.backup_timer.timeout.connect(self.auto_backup)
         self.candidate_hover_timer = self.timer(150, self.open_candidate_hover)
         self.candidate_leave_timer = self.timer(320, self.close_candidate_hover)
         self.hover_timer = self.timer(90, self.open_hover_candidate)
@@ -168,10 +140,11 @@ class CompositionWorkspace(QWidget, Workflows):
             self.hover.setChecked(bool(self.store.get("hover", False)))
             self.sync_hover()
             self.load_settings()
+            self.backup_timer.start()
             self.load_session(self.store.get("active_session", self.catalog.selected_module))
             self.refresh_modules()
             if self.has_conflict:
-                self.report("专用词库有未决冲突。草稿仍可编辑；请从更多菜单处理冲突。", persistent=True)
+                self.report("专用词库有未决冲突。模块正文仍可编辑；请等待词库状态恢复。", persistent=True)
         except STORAGE_ERRORS:
             self.store = None
             self.report("无法打开组合输入数据，原数据已保留。当前编辑可复制。", persistent=True)
@@ -186,8 +159,6 @@ class CompositionWorkspace(QWidget, Workflows):
             self.session_id, self.revision = identity, revision
             self.editor.load_state(EditorState(model, anchor, cursor))
             self.dirty = False
-            self.update_preview_output()
-            self.submit_button.setText("替换或复制…" if identity.startswith("reload-") else "落字到…")
             self.refresh_annotations()
         finally:
             self.loading = False
@@ -206,8 +177,6 @@ class CompositionWorkspace(QWidget, Workflows):
         if getattr(self, "quick_module_window", None):
             self.quick_module_window.hide()
         self.dismiss_panel()
-        self.preview_window.hide()
-        self.preview_button.setChecked(False)
         center = getattr(self, "template_center", None)
         if center is not None:
             center.hide()
@@ -218,8 +187,6 @@ class CompositionWorkspace(QWidget, Workflows):
         if self.loading:
             return
         self.schedule_save()
-        if self.preview_window.isVisible():
-            self.update_preview_output()
         if self.panel.token and not self.pending_insertion:
             current = self.find_token(self.panel.token.id)
             if current:
@@ -263,15 +230,22 @@ class CompositionWorkspace(QWidget, Workflows):
         try:
             revision = self.revision + 1
             if self.store:
-                self.store.save_draft(self.session_id, revision, state.document, state.anchor, state.cursor)
+                if self.store.save_draft(self.session_id, revision, state.document, state.anchor, state.cursor) is False:
+                    raise CompositionStorageError("模块正文版本冲突")
             elif self.factory is None:
                 self.memory_sessions[self.session_id] = (revision, state.document, state.anchor, state.cursor)
             else:
-                raise CompositionStorageError("草稿存储不可用")
+                raise CompositionStorageError("模块存储不可用")
         except STORAGE_ERRORS:
-            self.report("草稿保存失败，内容仍在编辑器。请重试或复制备份。", persistent=True)
+            self.autosave.start(2000)
+            message = "模块正文保存失败，正在重试。可复制正文。"
+            if self.status.text() != message:
+                self.report(message, persistent=True)
             return False
         self.revision, self.dirty = revision, False
+        if self.status.text().startswith("模块正文保存失败，"):
+            self.status.clear()
+            self.status.hide()
         return True
 
     def save_record(self, key, value):
@@ -286,6 +260,8 @@ class CompositionWorkspace(QWidget, Workflows):
             return False
 
     def save_catalog(self, catalog, *, word=None, words=(), active_session=None, new_draft=None, draft_update=None):
+        if self.store and (self.has_conflict or word is not None or words) and not self.reconcile_library():
+            return False
         try:
             catalog.validate()
             records = {"catalog": catalog.to_record()}
@@ -315,7 +291,8 @@ class CompositionWorkspace(QWidget, Workflows):
                 raise CompositionStorageError("配置无法保存")
         except LibraryConflict:
             self.has_conflict = True
-            self.report("专用词库出现写入冲突，请在更多菜单检查。", persistent=True)
+            self.report("专用词库出现写入冲突，原文件与恢复材料已保留。", persistent=True)
+            self.library_changed.emit()
             return False
         except STORAGE_ERRORS:
             self.report("词组配置未保存。请检查必填项、词库格式或文件冲突。", persistent=True)
@@ -359,63 +336,23 @@ class CompositionWorkspace(QWidget, Workflows):
         )
 
     def report(self, text, *, persistent=False):
-        self.status.setText(text)
-        self.status.show()
-        self.status_timer.stop()
-        if not persistent:
-            self.status_timer.start()
+        self.status.display(text, persistent)
 
     def confirm(self, text):
-        return QMessageBox.question(self, "组合输入", text,
-                                    QMessageBox.Yes | QMessageBox.No, QMessageBox.No) == QMessageBox.Yes
+        dialog = QMessageBox(QMessageBox.Question, "组合输入", text,
+                             QMessageBox.Ok | QMessageBox.Cancel, self)
+        dialog.button(QMessageBox.Ok).setText("确定")
+        dialog.button(QMessageBox.Cancel).setText("取消")
+        dialog.setDefaultButton(QMessageBox.Cancel)
+        return dialog.exec() == QMessageBox.Ok
 
     def copy(self):
         if not self.editor.composing and self.output() != "":
             self.copy_requested.emit(self.output())
 
     def submit(self):
-        if not self.editor.composing and self.output() != "":
-            self.flush()
+        if not self.editor.composing and self.output() != "" and self.flush():
             self.submit_requested.emit(self.output())
-
-    def select_preview_view(self):
-        source = self.preview_source.isChecked()
-        self.preview.setVisible(source)
-        self.markdown_view.setVisible(not source)
-
-    def update_preview_output(self):
-        output = self.output()
-        if output == getattr(self, "_preview_output", None):
-            return
-        self._preview_output = output
-        self.preview.setPlainText(output)
-        flags = QTextDocument.MarkdownDialectGitHub | QTextDocument.MarkdownNoHTML
-        document = self.markdown_view.document()
-        document.setMarkdown(output, flags)
-        block = document.begin()
-        while block.isValid():
-            if block.textList():
-                cursor = QTextCursor(block)
-                formatting = block.blockFormat()
-                formatting.setTopMargin(min(2, formatting.topMargin()))
-                formatting.setBottomMargin(min(2, formatting.bottomMargin()))
-                cursor.setBlockFormat(formatting)
-            block = block.next()
-
-    def toggle_preview(self):
-        visible = self.preview_button.isChecked()
-        if visible:
-            self.update_preview_output()
-        if visible:
-            area = self.screen().availableGeometry()
-            if not getattr(self, "_preview_positioned", False) or not area.contains(self.preview_window.geometry()):
-                self.preview_window.resize(min(420, area.width()), min(345, area.height()))
-                self.preview_window.move(min(self.window().geometry().right(),
-                                             area.right() - self.preview_window.width() + 1),
-                                         max(area.top(), min(self.window().y(),
-                                             area.bottom() - self.preview_window.height() + 1)))
-            self._preview_positioned = True
-        self.preview_window.setVisible(visible)
 
     def escape(self):
         if self.panel.isVisible():
@@ -854,15 +791,17 @@ class CompositionWorkspace(QWidget, Workflows):
         menu = QMenu(self)
         menu.addAction("管理词组", self.manage_groups)
         menu.addAction("撤销最近词组配置", self.undo_catalog)
-        menu.addAction("立即保存草稿", self.flush)
         menu.addSeparator()
         self.add_workflow_actions(menu)
         menu.exec(self.more.mapToGlobal(QPoint(0, self.more.height())))
 
     def manage_groups(self):
+        self.dismiss_panel()
         pos = self.editor.offsets()[1]
         token = self.editor.model.token_at(pos) or Token(pos, pos, "", Choice(""))
-        self.panel.open_token(token, mode="config-main", locked=True)
+        self.panel.open_token(token, mode="config-global", locked=True)
+        self.panel.activateWindow()
+        self.panel.groups_button.setFocus()
 
     def context(self, global_position, position):
         self.context_active = True

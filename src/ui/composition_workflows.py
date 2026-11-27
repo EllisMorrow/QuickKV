@@ -137,9 +137,7 @@ class Workflows:
         self.group_favorites = {}
         self.detect = True
         self.show_observation = True
-        self.include_backups = False
         self.keep_backups = 5
-        self.output_transcription = False
         self.template_expand = None
         self.recognizer = None
         self.recognizer_catalog = None
@@ -169,9 +167,7 @@ class Workflows:
         self.detect = self.store.get("recognition", True)
         self.automatic = self.store.get("continuous_suggestions", False)
         self.show_observation = self.store.get("observations", True)
-        self.include_backups = self.store.get("backup_drafts", False)
         self.keep_backups = self.store.get("backup_keep", 5)
-        self.output_transcription = self.store.get("transcribe_new_drafts", False)
         self.backup_timer.start()
         QTimer.singleShot(500, self.auto_backup)
 
@@ -201,7 +197,7 @@ class Workflows:
 
     def switch_module(self, identity):
         if not self.flush():
-            self.report("请先保存或复制当前草稿，再切换模块")
+            self.report("请先保存或复制当前正文，再切换模块")
             return False
         updated = replace(self.catalog, selected_module=identity)
         old_id = self.session_id
@@ -211,11 +207,9 @@ class Workflows:
                 self.load_session(old_id)
                 return False
         except WORKFLOW_ERRORS:
-            self.report("目标模块草稿无法读取", persistent=True)
+            self.report("目标模块正文无法读取", persistent=True)
             return False
         self.dismiss_panel()
-        self.preview_window.hide()
-        self.preview_button.setChecked(False)
         center = getattr(self, "template_center", None)
         if center is not None:
             center.hide()
@@ -350,10 +344,10 @@ class Workflows:
         if not ok or not name.strip():
             return
         module = Module(name.strip()) if kind == "new" else replace(
-            current, name=name.strip(), id=new_id() if kind == "duplicate" else current.id,
+            current, name=name.strip(), id=(("reload-" if current.id.startswith("reload-") else "") + new_id()) if kind == "duplicate" else current.id,
             shortcut="" if kind == "duplicate" else current.shortcut,
         )
-        if kind == "duplicate" and self.confirm("同时复制当前草稿中的值？"):
+        if kind == "duplicate" and self.confirm("同时复制当前正文中的值？"):
             if not self.flush():
                 return
             try:
@@ -363,7 +357,7 @@ class Workflows:
                 elif old:
                     self.memory_sessions[module.id] = old
             except WORKFLOW_ERRORS:
-                self.report("无法复制模块草稿")
+                self.report("无法复制模块正文")
                 return
         return self.save_catalog(self.catalog.replace_module(module))
 
@@ -381,13 +375,13 @@ class Workflows:
         try:
             drafts = set(self.store.draft_ids()) if self.store else set(self.memory_sessions)
         except WORKFLOW_ERRORS:
-            self.report("无法确认模块草稿，删除已取消")
+            self.report("无法确认模块正文，删除已取消")
             return False
         names = "、".join(module.name for module in removed[:8])
         if len(removed) > 8:
             names += " 等"
         count = sum(module.id in drafts for module in removed)
-        if not self.confirm(f"移除 {len(removed)} 个模块？\n{names}\n其中 {count} 个有草稿。将先建立保护快照。"):
+        if not self.confirm(f"移除 {len(removed)} 个模块？\n{names}\n其中 {count} 个有正文。将先建立保护快照。"):
             return False
         if not self.protect("删除模块"):
             return False
@@ -397,7 +391,7 @@ class Workflows:
             try:
                 self.store.load_draft(target)
             except WORKFLOW_ERRORS:
-                self.report("目标模块草稿无法读取，删除已取消")
+                self.report("目标模块正文无法读取，删除已取消")
                 return False
         catalog = replace(self.catalog, modules=modules, selected_module=target)
         if not self.save_catalog(catalog, active_session=target if active else None):
@@ -407,13 +401,20 @@ class Workflows:
             self.load_session(target)
         return True
 
-    def manage_modules(self):
+    def manage_modules(self, *, reload_only=False):
+        def visible_modules():
+            return tuple(m for m in self.catalog.modules if not reload_only or m.id.startswith("reload-"))
+
+        def merge_order(items):
+            visible_ids = {m.id for m in visible_modules()}
+            ordered = iter(items)
+            return tuple(next(ordered) if m.id in visible_ids else m for m in self.catalog.modules)
         dialog = QDialog(self)
         self.dismiss_panel()
-        dialog.setWindowTitle("模块中心")
+        dialog.setWindowTitle("回载建立的模块" if reload_only else "模块中心")
         dialog.resize(530, 365)
         layout = QVBoxLayout(dialog)
-        layout.addWidget(QLabel("输入模块保存独立草稿、光标和词组范围。"))
+        layout.addWidget(QLabel("输入模块保存独立正文、光标和词组范围。"))
         controls = QHBoxLayout()
         search = QLineEdit()
         search.setPlaceholderText("搜索模块")
@@ -421,6 +422,8 @@ class Workflows:
         layout.addLayout(controls)
         entries = make_list()
         layout.addWidget(entries)
+        empty = QLabel("还没有通过回载建立的模块。")
+        layout.addWidget(empty)
 
         checked = set()
         batch_count = QLabel()
@@ -449,14 +452,14 @@ class Workflows:
             refresh()
 
         def move_checked(offset):
-            items = list(self.catalog.modules)
+            items = list(visible_modules())
             indices = range(1, len(items)) if offset < 0 else range(len(items) - 2, -1, -1)
             for index in indices:
                 other = index + offset
                 if items[index].id in checked and items[other].id not in checked:
                     items[index], items[other] = items[other], items[index]
-            if tuple(items) != self.catalog.modules:
-                self.save_catalog(replace(self.catalog, modules=tuple(items)))
+            if tuple(items) != visible_modules():
+                self.save_catalog(replace(self.catalog, modules=merge_order(items)))
                 refresh()
 
         def delete_checked():
@@ -483,7 +486,7 @@ class Workflows:
             query = search.text().strip().casefold()
             entries.blockSignals(True)
             fill_list(entries, ((m.id, m.name + ("  ✓ 当前" if m.id == self.catalog.selected_module else ""))
-                                for m in self.catalog.modules if query in m.name.casefold()),
+                                for m in visible_modules() if query in m.name.casefold()),
                       current.id if current else self.catalog.selected_module)
             if entries.currentRow() < 0 and entries.count():
                 entries.setCurrentRow(0)
@@ -493,6 +496,7 @@ class Workflows:
                 item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
                 item.setCheckState(Qt.Checked if item.data(Qt.UserRole) in checked else Qt.Unchecked)
             entries.blockSignals(False)
+            empty.setVisible(reload_only and not visible_modules())
             entries.setDragEnabled(not query)
             sync_checks()
             place_row_tools()
@@ -619,7 +623,7 @@ class Workflows:
                 module = selected()
                 if not module:
                     return
-                items = list(self.catalog.modules)
+                items = list(visible_modules())
                 i = items.index(module)
                 j = i + offset
                 if not 0 <= j < len(items):
@@ -629,7 +633,7 @@ class Workflows:
                 if search.text().strip():
                     return
                 items = [self.catalog.module(i) for i in list_ids(entries)]
-            if self.save_catalog(replace(self.catalog, modules=tuple(items))) and offset:
+            if len(items) == len(visible_modules()) and self.save_catalog(replace(self.catalog, modules=merge_order(items))) and offset:
                 refresh()
 
         def switch():
@@ -644,7 +648,8 @@ class Workflows:
             if selected():
                 self.center_menu(dialog, point, actions)
 
-        button(controls, "＋ 新建模块", lambda: edit("new"))
+        if not reload_only:
+            button(controls, "＋ 新建模块", lambda: edit("new"))
         bar = QHBoxLayout()
         button(bar, "切换到所选模块", switch).setProperty("compositionPrimary", True)
         bar.addStretch()
@@ -678,9 +683,8 @@ class Workflows:
     def reload_menu(self):
         menu = QMenu(self)
         menu.addAction("从外部选区载入", self.external_reload_requested.emit)
-        menu.addAction("剪贴板新建回载草稿", lambda: self.open_reload(QApplication.clipboard().text()))
-        menu.addAction("打开已保存的回载草稿", self.choose_reload)
-        menu.addAction("返回模块草稿", self.return_to_module_draft)
+        menu.addAction("从剪贴板回载并新建模块", lambda: self.open_reload(QApplication.clipboard().text()))
+        menu.addAction("打开回载建立的模块", self.choose_reload)
         self.toggle_action(menu, "识别提示", "detect", "recognition", self.refresh_annotations)
         menu.exec(self.reload_button.mapToGlobal(QPoint(0, self.reload_button.height())))
 
@@ -730,30 +734,14 @@ class Workflows:
                 self.previous_reload_module = source.id
             self.load_session(identity)
         except WORKFLOW_ERRORS:
-            self.report("回载未完成，当前草稿已保留", persistent=True)
+            self.report("回载未完成，当前正文已保留", persistent=True)
             return False
         self.dismiss_panel()
         self.editor.setFocus()
         return True
 
     def choose_reload(self):
-        if not self.flush():
-            return
-        try:
-            identities = self.store.draft_ids() if self.store else self.memory_sessions
-            choices = []
-            for identity in identities:
-                if identity.startswith("reload-"):
-                    record = self.store.load_draft(identity) if self.store else self.memory_sessions[identity]
-                    label = next((line.strip() for line in record[1].text.split("\n") if line.strip()), "空草稿")
-                    choices.append((identity, label[:54], identity))
-            selected = self.pick("已保存的回载草稿", choices)
-            if selected and any(module.id == selected for module in self.catalog.modules):
-                self.switch_module(selected)
-            elif selected and self.save_record("active_session", selected):
-                self.load_session(selected)
-        except WORKFLOW_ERRORS:
-            self.report("无法打开回载草稿")
+        self.manage_modules(reload_only=True)
 
     def refresh_annotations(self):
         previous = getattr(self, "_annotated_model", None)
@@ -1924,9 +1912,9 @@ class Workflows:
 
     def auto_backup(self):
         service = self.backup_service()
-        if service and self.flush():
+        if service and self.flush() and self.reconcile_library():
             try:
-                service.create("自动备份", "automatic", include_drafts=self.include_backups, keep=self.keep_backups)
+                service.create("自动备份", "automatic", include_drafts=True, keep=self.keep_backups)
             except WORKFLOW_ERRORS:
                 self.report("自动备份未完成，已有备份已保留")
 
@@ -1935,7 +1923,7 @@ class Workflows:
         if not service:
             return
         name, ok = QInputDialog.getText(self, "手动备份", "备份名称")
-        if ok and self.flush():
+        if ok and self.flush() and self.reconcile_library():
             try:
                 service.create(name.strip() or "手动备份", include_drafts=True)
                 self.report("已建立并校验备份")
@@ -1965,17 +1953,17 @@ class Workflows:
             sources = {o.source for g in catalog.groups for o in g.options if o.source}
             missing = sum(not Path(source).is_file() for source in sources)
             summary = (f"{meta['name']} · 词组 {len(catalog.groups)} · 模块 {len(catalog.modules)} · "
-                       f"草稿 {len(config['drafts'])} · 词库 {len(library)} 字节 · 缺少外部来源 {missing}")
-            actions = ["恢复配置及专用词库", "恢复配置、专用词库及归档草稿", "固定保留", "导出备份", "删除备份"]
+                       f"模块正文 {len(config['drafts'])} · 词库 {len(library)} 字节 · 缺少外部来源 {missing}")
+            actions = ["恢复配置及专用词库", "恢复配置、专用词库及模块正文", "固定保留", "导出备份", "删除备份"]
             if not config["drafts"]:
-                actions.remove("恢复配置、专用词库及归档草稿")
+                actions.remove("恢复配置、专用词库及模块正文")
             action, ok = QInputDialog.getItem(self, "备份内容", summary, actions, editable=False)
             if not ok:
                 return
             local = path.parent == service.directory
-            if action.startswith("恢复") and self.flush():
-                full = action == "恢复配置、专用词库及归档草稿"
-                if full and not self.confirm("恢复归档模块的草稿？当前数据将存入恢复前保护快照。"):
+            if action.startswith("恢复") and self.flush() and self.reconcile_library():
+                full = action == "恢复配置、专用词库及模块正文"
+                if full and not self.confirm("恢复归档模块的正文？当前数据将存入恢复前保护快照。"):
                     return
                 service.restore(path, include_drafts=full)
                 self.catalog = Catalog.load(self.store.get("catalog"))
@@ -1999,38 +1987,42 @@ class Workflows:
             elif action == "删除备份" and local and self.confirm("删除这一份本机备份？"):
                 path.unlink()
         except WORKFLOW_ERRORS:
-            self.report("无法验证或处理该备份，当前草稿已保留", persistent=True)
+            self.report("无法验证或处理该备份，当前正文已保留", persistent=True)
 
     def open_backup(self):
         file, _ = QFileDialog.getOpenFileName(self, "打开备份", "", "QuickKV 备份 (*.quickkv-backup)")
         if file and self.backup_service():
             self.backup_actions(Path(file))
 
-    def resolve_library_conflict(self):
+    def reconcile_library(self):
         if not self.store:
-            return
+            return True
         try:
-            self.store.recover_library()
-        except CompositionStorageError:
-            if not self.confirm("保留外部词库版本，并将本次未完成的词库和配置变更留档？"):
-                return
-            try:
-                self.store.retain_external_library()
-            except WORKFLOW_ERRORS:
-                self.report("无法留档，未决事务仍保留", persistent=True)
-                return
+            result = self.store.recover_library()
+            if result == "completed":
+                self.catalog = Catalog.load(self.store.get("catalog"))
+                self.refresh_modules()
+                if not self.dirty:
+                    self.load_session(self.session_id)
         except WORKFLOW_ERRORS:
-            self.report("无法检查未决事务，原文件已保留", persistent=True)
-            return
+            if not self.has_conflict:
+                self.report("专用词库有未决冲突，当前文件和恢复材料已保留。", persistent=True)
+            self.has_conflict = True
+            return False
+        if self.has_conflict and "专用词库" in self.status.text():
+            self.status.hide()
         self.has_conflict = False
-        self.catalog = Catalog.load(self.store.get("catalog"))
-        self.refresh_modules()
-        self.library_changed.emit()
-        self.report("专用词库冲突已处理")
+        return True
 
     def add_workflow_actions(self, menu):
         self.toggle_action(menu, "正文连续联想", "automatic", "continuous_suggestions", self.dismiss_panel)
-        self.toggle_action(menu, "新建草稿输出转写", "output_transcription", "transcribe_new_drafts")
+        transcription = menu.addAction("程序输出时镜像使用Q-KV「转写功能」")
+        transcription.setCheckable(True)
+        transcription.setChecked(getattr(self.settings, "transcription_enabled", True))
+        if self.set_output_transcription:
+            transcription.toggled.connect(self.set_output_transcription)
+        else:
+            transcription.setEnabled(False)
         menu.addSeparator()
         self.toggle_action(menu, "观察维度提示", "show_observation", "observations", self.refresh_indicators)
         module = self.catalog.module()
@@ -2038,15 +2030,12 @@ class Workflows:
         menu.addAction(label, lambda: (self.save_catalog(self.catalog.replace_module(replace(
             module, show_observations=not module.show_observations))), self.refresh_indicators()))
         menu.addSeparator()
-        if self.store:
-            menu.addAction("检查专用词库冲突", self.resolve_library_conflict)
         backups = menu.addMenu("备份与恢复")
         backups.addAction("创建手动备份", self.manual_backup)
         backups.addAction("查看本机备份", self.choose_backup)
         backups.addAction("导入并预览备份", self.open_backup)
         backups.addAction("打开备份目录", self.open_backup_directory)
         backups.addAction("设置自动保留份数", self.backup_settings)
-        self.toggle_action(backups, "长期备份包含草稿", "include_backups", "backup_drafts")
 
     def open_backup_directory(self):
         service = self.backup_service()

@@ -366,6 +366,16 @@ class SearchPopup(QWidget):
         self._track_draft_visibility(True)
         super().showEvent(event)
 
+    def hide(self):
+        if self.composition.flush():
+            super().hide()
+
+    def closeEvent(self, event):
+        if not self.composition.flush():
+            event.ignore()
+            return
+        super().closeEvent(event)
+
     def hideEvent(self, event):
         self._track_draft_visibility(False)
         self._save_mode_size()
@@ -396,13 +406,14 @@ class SearchPopup(QWidget):
     def set_input_mode(self, mode):
         if self.input_mode == mode:
             return
+        if self.input_mode == InputMode.COMPOSITION and not self.composition.flush():
+            return
         self.restore_edge_cursor()
         self._save_mode_size()
         if self.is_continuous_mode():
             self.continuous_editor.dismiss_candidates()
         if self.input_mode == InputMode.COMPOSITION:
             self.composition.dismiss_panel()
-            self.composition.flush()
         self.input_mode = mode
         self.popup_shadow.setEnabled(mode != InputMode.COMPOSITION)
         self._track_draft_visibility(self.isVisible())

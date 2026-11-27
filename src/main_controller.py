@@ -139,6 +139,7 @@ class MainController(QObject):
         composition.submit_requested.connect(self.submit_composition)
         composition.external_reload_requested.connect(lambda: self.capture_composition(use_previous=True))
         composition.library_changed.connect(self.composition_library_changed)
+        composition.set_output_transcription = lambda enabled: self._update_settings(transcription_enabled=enabled)
         self.word_manager.composition_writer = self.publish_composition_library
         self.popup.controller = self # 将 controller 实例传递给 popup
         self.show_popup_signal.connect(self.popup.show_and_focus)
@@ -160,13 +161,6 @@ class MainController(QObject):
         self.composition_capture.failed.connect(self.show_composition_capture_error)
         self.composition_hotkey = None
         self.last_popup_target_hwnd = 0
-        self.continuous_target = (0, 0)
-        self.continuous_request = None
-        self.continuous_process = None
-        self.continuous_paste_timer = QTimer(self)
-        self.continuous_paste_timer.setInterval(20)
-        self.continuous_paste_timer.timeout.connect(self._poll_continuous_paste)
-        
         self.hotkey_manager = NativeHotkeyManager(self.settings.hotkey)
         self.hotkey_manager.suppress_string_trigger = self.is_draft_foreground
         self.hotkey_manager.hotkey_triggered.connect(self.on_hotkey_triggered)
@@ -321,19 +315,6 @@ class MainController(QObject):
             self._get_foreground_hwnd() if hwnd is None else hwnd
         )
 
-    def _set_continuous_target(self, hwnd):
-        pid = self._get_window_process_id(hwnd)
-        if not pid or pid == self.quickkv_pid:
-            self.continuous_target = (0, 0)
-            self.popup.continuous_editor.set_target_label("")
-            return
-
-        self.continuous_target = (hwnd, pid)
-        title_length = self.user32.GetWindowTextLengthW(wintypes.HWND(hwnd))
-        title = ctypes.create_unicode_buffer(max(title_length + 1, 1))
-        self.user32.GetWindowTextW(wintypes.HWND(hwnd), title, len(title))
-        self.popup.continuous_editor.set_target_label(title.value.strip() or "目标窗口")
-
     def _get_pressed_modifiers(self):
         pressed = []
         for name, vk in self.MODIFIER_VKS.items():
@@ -344,73 +325,75 @@ class MainController(QObject):
                 continue
         return pressed
 
-    def schedule_paste(self, target_hwnd, origin='popup', grace_ms=None):
+    def schedule_paste(self, target_hwnd, origin="popup", grace_ms=None, *, completed=None, clipboard_sequence=None):
+        if self.pending_paste_request:
+            return False
+        hwnd = int(target_hwnd or 0)
+        pid = self._get_window_process_id(hwnd)
+        sequence = self.user32.GetClipboardSequenceNumber()
+        if (not pid or pid == self.quickkv_pid or not sequence
+                or clipboard_sequence is not None and sequence != clipboard_sequence):
+            return False
+        window_class = ctypes.create_unicode_buffer(64)
+        self.user32.GetClassNameW(wintypes.HWND(hwnd), window_class, len(window_class))
+        if window_class.value in {"Progman", "WorkerW", "Shell_TrayWnd", "Shell_SecondaryTrayWnd"}:
+            return False
         if grace_ms is None:
-            grace_ms = self.popup_paste_grace_ms if origin == 'popup' else self.shortcut_paste_grace_ms
-
+            grace_ms = self.popup_paste_grace_ms if origin == "popup" else self.shortcut_paste_grace_ms
         self.pending_paste_request = {
-            'target_hwnd': int(target_hwnd or 0),
-            'origin': origin,
-            'scheduled_at': time.monotonic(),
-            'grace_ms': int(grace_ms),
-            'stable_hits': 0,
-            'last_foreground_hwnd': None,
+            "hwnd": hwnd, "pid": pid, "sequence": sequence, "mode": self.settings.paste_mode,
+            "started": time.monotonic(), "grace_ms": grace_ms, "stable_hits": 0,
+            "process": None, "completed": completed,
         }
-        if not self.pending_paste_timer.isActive():
-            self.pending_paste_timer.start()
+        self.pending_paste_timer.start()
+        return True
 
-        log(
-            f"已调度粘贴 | origin={origin} target_hwnd={int(target_hwnd or 0)} "
-            f"grace_ms={int(grace_ms)} timeout_ms={self.paste_timeout_ms}"
-        )
+    def _finish_pending_paste(self, sent):
+        request, self.pending_paste_request = self.pending_paste_request, None
+        self.pending_paste_timer.stop()
+        if request and request["completed"]:
+            request["completed"](sent, self.user32.GetClipboardSequenceNumber() == request["sequence"])
+
+    def _cancel_pending_paste(self):
+        request = self.pending_paste_request
+        if not request:
+            return
+        process = request["process"]
+        if process and process.poll() is None:
+            process.kill()
+        self._finish_pending_paste(False)
 
     def _poll_pending_paste(self):
         request = self.pending_paste_request
         if not request:
             self.pending_paste_timer.stop()
             return
-
-        foreground_hwnd = self._get_foreground_hwnd()
-        elapsed_ms = int((time.monotonic() - request['scheduled_at']) * 1000)
-
-        if request['target_hwnd'] and foreground_hwnd == request['target_hwnd']:
-            if request['last_foreground_hwnd'] == foreground_hwnd:
-                request['stable_hits'] += 1
-            else:
-                request['stable_hits'] = 1
-        else:
-            request['stable_hits'] = 0
-        request['last_foreground_hwnd'] = foreground_hwnd
-
-        pressed_modifiers = self._get_pressed_modifiers()
-        quickkv_foreground = self._is_quickkv_foreground(foreground_hwnd)
-        grace_ready = elapsed_ms >= request['grace_ms']
-        target_stable = request['target_hwnd'] and request['stable_hits'] >= 2
-
-        if grace_ready and not quickkv_foreground and not pressed_modifiers and target_stable:
-            self.pending_paste_request = None
-            self.pending_paste_timer.stop()
-            self.perform_paste_now(
-                origin=request['origin'],
-                target_hwnd=request['target_hwnd'],
-                foreground_hwnd=foreground_hwnd,
-                elapsed_ms=elapsed_ms,
-                forced=False,
-                modifiers=pressed_modifiers,
-            )
+        elapsed = (time.monotonic() - request["started"]) * 1000
+        process = request["process"]
+        if process:
+            result = process.poll()
+            if result is not None:
+                self._finish_pending_paste(result == 0)
+            elif elapsed >= 5000:
+                self._cancel_pending_paste()
             return
 
-        if elapsed_ms >= self.paste_timeout_ms:
-            self.pending_paste_request = None
-            self.pending_paste_timer.stop()
-            self.perform_paste_now(
-                origin=request['origin'],
-                target_hwnd=request['target_hwnd'],
-                foreground_hwnd=foreground_hwnd,
-                elapsed_ms=elapsed_ms,
-                forced=True,
-                modifiers=pressed_modifiers,
-            )
+        hwnd = request["hwnd"]
+        if (elapsed >= self.paste_timeout_ms or self._get_window_process_id(hwnd) != request["pid"]
+                or self.user32.GetClipboardSequenceNumber() != request["sequence"]):
+            self._finish_pending_paste(False)
+            return
+        if self._get_foreground_hwnd() != hwnd or self._get_pressed_modifiers():
+            request["stable_hits"] = 0
+            return
+        request["stable_hits"] += 1
+        if elapsed < request["grace_ms"] or request["stable_hits"] < 2:
+            return
+        request["process"] = self.perform_paste_now(request)
+        if request["process"] is None:
+            self._finish_pending_paste(False)
+        else:
+            request["started"] = time.monotonic()
 
     @Slot(int)
     def on_hotkey_triggered(self, trigger_id=0):
@@ -422,7 +405,6 @@ class MainController(QObject):
             log("热键触发：关闭窗口。"); self.hide_popup_signal.emit()
         else:
             self.last_popup_target_hwnd = self._capture_target_hwnd()
-            self._set_continuous_target(self.last_popup_target_hwnd)
             log(f"热键触发：打开窗口。目标 hwnd={self.last_popup_target_hwnd}")
             self.show_popup_signal.emit()
 
@@ -430,8 +412,7 @@ class MainController(QObject):
         """Bring the already-owned search window to the foreground via local IPC."""
         log("收到第二实例的激活请求。")
         if not self.popup.isVisible():
-            self.last_popup_target_hwnd = 0
-            self._set_continuous_target(0)
+            self.last_popup_target_hwnd = self._capture_target_hwnd()
         self.show_popup_signal.emit()
 
     @Slot(str)
@@ -522,7 +503,12 @@ class MainController(QObject):
         composition_store = getattr(self, "_composition_store", None)
         if composition_store is not None:
             try:
-                self.word_manager.composition_blocked = composition_store.library_pending()
+                workspace = self.popup.composition
+                if workspace.store is composition_store:
+                    self.word_manager.composition_blocked = not workspace.reconcile_library()
+                else:
+                    composition_store.recover_library()
+                    self.word_manager.composition_blocked = False
             except STORAGE_ERRORS:
                 self.word_manager.composition_blocked = True
         self.word_manager.reload_all() # 核心：加载所有词库
@@ -570,7 +556,9 @@ class MainController(QObject):
 
     def publish_composition_library(self, before, after):
         try:
-            self.composition_storage().publish_library(before, after, {})
+            store = self.composition_storage()
+            store.recover_library()
+            store.publish_library(before, after, {})
             return True
         except STORAGE_ERRORS:
             self.word_manager.composition_blocked = True
@@ -578,53 +566,19 @@ class MainController(QObject):
             return False
 
     def composition_library_changed(self):
-        self.word_manager.composition_blocked = False
         self.schedule_full_reload()
 
-    def copy_composition(self, text, *, apply_rules=True):
-        workspace = self.popup.composition
-        if apply_rules and workspace.output_transcription and not workspace.session_id.startswith("reload-"):
-            text = self._transcribe_output(text)
-        if not text:
-            workspace.report("没有可复制的内容")
-            return False
-        result = self._copy_continuous_output(text)
-        workspace.report("已复制，草稿已保留" if result else "复制失败，草稿已保留")
-        return result
+    def copy_composition(self, text):
+        return self._copy_editor_output(text, self.popup.composition.report)
 
     def submit_composition(self, text):
-        workspace = self.popup.composition
-        if workspace.session_id.startswith("reload-"):
-            if self.copy_composition(text, apply_rules=False):
-                workspace.report("已复制回载结果。请回到原应用核对选区后粘贴。", persistent=True)
-            return
-        if self.continuous_request or self.pending_paste_request or self.composition_capture.request:
-            workspace.report("另一个输出操作正在进行")
-            return
-        hwnd, pid = self.continuous_target
-        if not hwnd or self._get_window_process_id(hwnd) != pid:
-            self.copy_composition(text)
-            return
-        output = self._transcribe_output(text) if workspace.output_transcription else text
-        mode = self.settings.paste_mode
-        if not output:
-            workspace.report("转写后没有可输出内容")
-            return
-        if mode == PASTE_MODE_TYPING and any(char in output for char in "\r\n\t"):
-            self.copy_composition(output, apply_rules=False)
-            return
-        self.continuous_request = {
-            "target": (hwnd, pid), "draft": text, "output": output, "mode": mode,
-            "started_at": time.monotonic(), "stable_hits": 0, "composition": True,
-        }
-        self.popup.hide()
-        self.continuous_paste_timer.start()
+        self._submit_editor_output(text, composition=True)
 
     def capture_composition(self, use_previous=False):
         hwnd = self.last_popup_target_hwnd if use_previous else self._get_foreground_hwnd()
         if not self.popup.composition.flush():
             return
-        if self.continuous_request or self.pending_paste_request:
+        if self.pending_paste_request:
             self.show_composition_capture_error("请等待当前落字完成。")
             return
         self.composition_capture.begin(hwnd)
@@ -675,12 +629,28 @@ class MainController(QObject):
         if not self._update_settings(composition_hotkey=shortcut):
             self.configure_composition_hotkey(current)
 
-    def _prepare_continuous_output(self, text):
-        output = self._transcribe_output(text)
-        if output == "":
-            QMessageBox.warning(self.popup, "没有可输出的内容", "转写后的正文为空，草稿已保留。")
+    def _prepare_editor_output(self, text, feedback):
+        if not text:
+            feedback("没有可输出的正文")
+            return None
+        try:
+            output = (transcribe(text, self.settings.transcription_rules)
+                      if self.settings.transcription_enabled else text)
+        except TranscriptionError:
+            feedback("转写规则有误，本次输出已取消")
+            return None
+        if not output:
+            feedback("转写后的正文为空")
             return None
         return output
+
+    def _copy_editor_output(self, text, feedback):
+        output = self._prepare_editor_output(text, feedback)
+        if output is None:
+            return False
+        copied = self._copy_continuous_output(output)
+        feedback("复制成功" if copied else "复制失败：无法写入剪贴板")
+        return copied
 
     def _copy_continuous_output(self, text):
         previous_ignore_state = self.ignore_next_clipboard_change
@@ -695,155 +665,62 @@ class MainController(QObject):
 
     @Slot(str)
     def copy_continuous_draft(self, text):
-        if not text.strip() or self.continuous_request:
-            return
-        output = self._prepare_continuous_output(text)
-        if output is not None and not self._copy_continuous_output(output):
-            QMessageBox.warning(self.popup, "复制失败", "无法写入剪贴板，请重试。草稿已保留。")
+        return self._copy_editor_output(text, self.popup.continuous_editor.report_output)
 
     @Slot(str)
     def submit_continuous_draft(self, text):
-        if not text.strip() or self.continuous_request:
-            return
+        self._submit_editor_output(text, composition=False)
 
-        hwnd, pid = self.continuous_target
-        if not hwnd or self._get_window_process_id(hwnd) != pid:
-            QMessageBox.warning(self.popup, "目标窗口不可用", "请从目标窗口重新唤起 QuickKV，或使用“复制整段”。")
+    def _submit_editor_output(self, text, *, composition):
+        editor = self.popup.continuous_editor
+        workspace = self.popup.composition
+        feedback = workspace.report if composition else editor.report_output
+        if self.pending_paste_request or self.composition_capture.request:
+            feedback("另一个输出操作正在进行")
             return
-        if self.pending_paste_request:
-            QMessageBox.warning(self.popup, "正在落字", "请等上一次落字处理结束后重试。")
-            return
-
-        output = self._prepare_continuous_output(text)
+        output = self._prepare_editor_output(text, feedback)
         if output is None:
             return
-        mode = self.settings.paste_mode
-        if mode == PASTE_MODE_TYPING and any(character in output for character in "\r\n\t"):
-            QMessageBox.warning(
-                self.popup, "当前落字方式不适用于这份草稿",
-                "文本输入方式可能把换行或制表符发送成操作按键。请使用“复制整段”，或改用剪贴板落字方式。",
-            )
+        if not self._copy_continuous_output(output):
+            feedback("无法落字：写入剪贴板失败")
             return
-        self.continuous_request = {
-            'target': (hwnd, pid), 'draft': text, 'output': output, 'mode': mode,
-            'started_at': time.monotonic(), 'stable_hits': 0,
-        }
-        self.popup.continuous_editor.set_submission_pending(True)
+        if self.settings.paste_mode == PASTE_MODE_TYPING and any(char in output for char in "\r\n\t"):
+            feedback("逐字输入不支持换行或 Tab，已复制")
+            return
+
+        def finished(sent, clipboard_preserved):
+            if not composition:
+                editor.set_submission_pending(False)
+            if sent:
+                if not composition:
+                    editor.complete_submission(text)
+                feedback("已发送落字")
+            else:
+                if composition:
+                    self.popup.reappear_in_place()
+                else:
+                    self.popup.resume_continuous_after_paste_failure()
+                feedback("未能落字，已复制" if clipboard_preserved else "未能落字，剪贴板已变化")
+
+        sequence = self._verify_paste_clipboard(output)
+        if not sequence:
+            feedback("未能落字，剪贴板已变化")
+            return
+        foreground = self._get_foreground_hwnd()
+        hwnd = self.last_popup_target_hwnd if self._is_quickkv_foreground(foreground) else foreground
+        if not self.schedule_paste(hwnd, completed=finished, clipboard_sequence=sequence):
+            feedback("未能落字，已复制")
+            return
+        if not composition:
+            editor.set_submission_pending(True)
         self.popup.hide()
-        self.continuous_paste_timer.start()
-
-    def _poll_continuous_paste(self):
-        request = self.continuous_request
-        if request is None:
-            self.continuous_paste_timer.stop()
-            return
-
-        process = self.continuous_process
-        if process:
-            exit_code = process.poll()
-            if exit_code is not None:
-                log(f"连续联想落字进程已结束，退出码={exit_code}。")
-                self._finish_continuous_paste(exit_code == 0)
-            elif time.monotonic() - request['started_at'] >= 5:
-                # The target application may hang while handling SendKeys.
-                process.kill()
-            return
-
-        hwnd, pid = request['target']
-        if time.monotonic() - request['started_at'] >= self.paste_timeout_ms / 1000:
-            self._finish_continuous_paste(False)
-            return
-        if self.pending_paste_request or self._get_window_process_id(hwnd) != pid:
-            self._finish_continuous_paste(False)
-            return
-
-        if self._get_foreground_hwnd() == hwnd and not self._get_pressed_modifiers():
-            request['stable_hits'] += 1
-        else:
-            request['stable_hits'] = 0
-        if request['stable_hits'] < 2:
-            return
-
-        if not self._copy_continuous_output(request['output']):
-            self._finish_continuous_paste(False, "无法写入剪贴板，草稿已保留，请重试。")
-            return
-        sequence = self.user32.GetClipboardSequenceNumber()
-        try:
-            clipboard_matches = pyperclip.paste() == request['output']
-        except pyperclip.PyperclipException:
-            clipboard_matches = False
-        if not sequence or not clipboard_matches or self.user32.GetClipboardSequenceNumber() != sequence:
-            self._finish_continuous_paste(False, "剪贴板在准备落字时发生变化，草稿已保留，请重试。")
-            return
-        self._start_continuous_paste_process(hwnd, pid, sequence)
-
-    def _start_continuous_paste_process(self, hwnd, pid, sequence):
-        setup, send = self._paste_commands(self.continuous_request['mode'])
-        if not send:
-            self._finish_continuous_paste(False, "无法执行当前落字方式，草稿已保留。")
-            return
-
-        # Check after PowerShell has loaded, immediately before dispatching global keystrokes.
-        script = f"""$ErrorActionPreference = 'Stop'
-Add-Type -AssemblyName System.Windows.Forms
-Add-Type -Name NativeMethods -Namespace QuickKV -MemberDefinition @'
-[DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
-[DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hwnd, out uint pid);
-[DllImport("user32.dll")] public static extern uint GetClipboardSequenceNumber();
-[DllImport("user32.dll")] public static extern short GetAsyncKeyState(int key);
-'@
-{setup}
-foreach ($key in 0x11, 0x10, 0x12, 0x5B, 0x5C) {{
-    if ([QuickKV.NativeMethods]::GetAsyncKeyState($key) -band 0x8000) {{ exit 2 }}
-}}
-$foreground = [QuickKV.NativeMethods]::GetForegroundWindow()
-if ($foreground.ToInt64() -ne {hwnd}) {{ exit 2 }}
-[uint32]$targetProcessId = 0
-[void][QuickKV.NativeMethods]::GetWindowThreadProcessId($foreground, [ref]$targetProcessId)
-if ($targetProcessId -ne {pid} -or [QuickKV.NativeMethods]::GetClipboardSequenceNumber() -ne {sequence}) {{ exit 2 }}
-{send}
-"""
-        command = base64.b64encode(script.encode("utf-16-le")).decode("ascii")
-        try:
-            self.continuous_process = subprocess.Popen(
-                ["powershell.exe", "-NoProfile", "-NonInteractive", "-EncodedCommand", command],
-                creationflags=subprocess.CREATE_NO_WINDOW,
-                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-            )
-            self.continuous_request['started_at'] = time.monotonic()
-        except OSError:
-            self._finish_continuous_paste(False, "无法启动落字进程，草稿已保留。")
-
-    def _finish_continuous_paste(self, dispatched, message=None):
-        request, self.continuous_request = self.continuous_request, None
-        self.continuous_process = None
-        self.continuous_paste_timer.stop()
-        if request and request.get("composition"):
-            if not dispatched:
-                self.popup.reappear_in_place()
-            self.popup.composition.report(
-                "已发送落字，草稿已保留" if dispatched else (message or "落字未完成，草稿已保留，可复制整段。"),
-                persistent=not dispatched,
-            )
-            return
-        editor = self.popup.continuous_editor
-        editor.set_submission_pending(False)
-        if dispatched:
-            editor.complete_submission(request['draft'])
-            return
-
-        self.popup.resume_continuous_after_paste_failure()
-        QMessageBox.warning(self.popup, "未能落字", message or "无法确认目标窗口并完成落字。草稿已保留，你也可以使用“复制整段”。")
-
-    def _stop_continuous_paste(self):
-        self.continuous_paste_timer.stop()
-        self.continuous_request = None
-        process, self.continuous_process = self.continuous_process, None
-        if process and process.poll() is None:
-            process.kill()
+        if self._is_quickkv_foreground(self._get_foreground_hwnd()):
+            self.user32.SetForegroundWindow(wintypes.HWND(hwnd))
 
     @Slot(str)
     def on_suggestion_selected(self, text, target_hwnd=None, origin='popup'):
+        if getattr(self, "pending_paste_request", None):
+            return
         found_block = self._find_block_by_full_content(text)
         if found_block and found_block.get('is_clipboard'):
             source_type = 'clipboard'
@@ -864,60 +741,110 @@ if ($targetProcessId -ne {pid} -or [QuickKV.NativeMethods]::GetClipboardSequence
             return
         self.record_entry_usage(found_block)
 
+        previous_ignore = self.ignore_next_clipboard_change
         self.ignore_next_clipboard_change = True
-        pyperclip.copy(content_to_paste)
-        log("已复制处理后的内容到剪贴板，并设置忽略标志。")
+        try:
+            pyperclip.copy(content_to_paste)
+        except pyperclip.PyperclipException:
+            self.ignore_next_clipboard_change = previous_ignore
+            log("无法写入普通搜索的落字内容。")
+            return
+        sequence = self._verify_paste_clipboard(content_to_paste)
+        if sequence:
+            resolved_target_hwnd = int(target_hwnd or self.last_popup_target_hwnd or 0)
+            self.schedule_paste(resolved_target_hwnd, origin=origin, clipboard_sequence=sequence)
 
-        resolved_target_hwnd = int(target_hwnd or self.last_popup_target_hwnd or 0)
-        self.schedule_paste(resolved_target_hwnd, origin=origin)
+    def _verify_paste_clipboard(self, expected):
+        sequence = self.user32.GetClipboardSequenceNumber()
+        try:
+            matches = pyperclip.paste() == expected
+        except pyperclip.PyperclipException:
+            return 0
+        return sequence if matches and self.user32.GetClipboardSequenceNumber() == sequence else 0
 
     def perform_paste(self):
-        self.perform_paste_now(origin='manual')
+        self.schedule_paste(self._get_foreground_hwnd(), origin='manual')
 
     @staticmethod
     def _paste_commands(mode):
         if mode == PASTE_MODE_CTRL_V:
-            return "", "[System.Windows.Forms.SendKeys]::SendWait('^v')"
+            return "", "if (-not [QuickKV.PasteGuard]::Paste($false)) { exit 3 }"
         if mode == PASTE_MODE_CTRL_SHIFT_V:
-            return "", "[System.Windows.Forms.SendKeys]::SendWait('+^v')"
+            return "", "if (-not [QuickKV.PasteGuard]::Paste($true)) { exit 3 }"
         if mode == PASTE_MODE_TYPING:
-            return (
-                "$clipboardText = Get-Clipboard -Raw; "
-                "$escapedText = $clipboardText -replace '([\\+\\^\\%\\~\\(\\)\\[\\]\\{\\}])', '{$1}';",
-                "[System.Windows.Forms.SendKeys]::SendWait($escapedText)",
+            return "$clipboardText = Get-Clipboard -Raw", (
+                "if (-not [QuickKV.PasteGuard]::TypeText($clipboardText)) { exit 3 }"
             )
         return "", ""
 
-    def perform_paste_now(self, origin='manual', target_hwnd=0, foreground_hwnd=0, elapsed_ms=0, forced=False, modifiers=None):
-        """
-        根据用户设置，通过 PowerShell 执行不同的粘贴操作。
-        保持默认主链尽量窄，只保留全局手动模式。
-        """
-        mode = self.settings.paste_mode
-        modifiers = modifiers or []
-        log(
-            f"准备执行粘贴 | origin={origin} mode={mode} target_hwnd={int(target_hwnd or 0)} "
-            f"foreground_hwnd={int(foreground_hwnd or 0)} elapsed_ms={elapsed_ms} "
-            f"forced={forced} modifiers={','.join(modifiers) or 'none'}"
-        )
-
-        setup, send = self._paste_commands(mode)
+    def perform_paste_now(self, request):
+        setup, send = self._paste_commands(request["mode"])
         if not send:
-            log(f"CRITICAL: 未识别的粘贴模式: {mode}")
-            return
-        ps_script = f"Add-Type -AssemblyName System.Windows.Forms; {setup} {send}"
-
+            return None
+        hwnd, pid, sequence = (request[key] for key in ("hwnd", "pid", "sequence"))
+        script = f"""
+$ErrorActionPreference = 'Stop'
+Add-Type -Name PasteGuard -Namespace QuickKV -MemberDefinition @'
+[DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+[DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hwnd, out uint pid);
+[DllImport("user32.dll")] public static extern uint GetClipboardSequenceNumber();
+[DllImport("user32.dll")] public static extern short GetAsyncKeyState(int key);
+[StructLayout(LayoutKind.Sequential)]
+public struct Key {{ public ushort vk, scan; public uint flags, time; public UIntPtr extra; }}
+[StructLayout(LayoutKind.Sequential)]
+public struct Mouse {{ public int x, y; public uint data, flags, time; public UIntPtr extra; }}
+[StructLayout(LayoutKind.Explicit)]
+public struct Data {{
+    [FieldOffset(0)] public Key key;
+    [FieldOffset(0)] public Mouse mouse;
+}}
+[StructLayout(LayoutKind.Sequential)]
+public struct Input {{ public uint type; public Data data; }}
+[DllImport("user32.dll", SetLastError=true)] public static extern uint SendInput(uint count, Input[] input, int size);
+static Input KeyEvent(ushort vk, ushort scan = 0, uint flags = 0) {{
+    return new Input {{ type = 1, data = new Data {{ key = new Key {{ vk = vk, scan = scan, flags = flags }} }} }};
+}}
+static bool Dispatch(Input[] events) {{
+    return events.Length > 0 && SendInput((uint)events.Length, events, Marshal.SizeOf(typeof(Input))) == events.Length;
+}}
+public static bool Paste(bool shift) {{
+    if (shift)
+        return Dispatch(new[] {{ KeyEvent(17), KeyEvent(16), KeyEvent(86), KeyEvent(86, 0, 2),
+                               KeyEvent(16, 0, 2), KeyEvent(17, 0, 2) }});
+    return Dispatch(new[] {{ KeyEvent(17), KeyEvent(86), KeyEvent(86, 0, 2), KeyEvent(17, 0, 2) }});
+}}
+public static bool TypeText(string text) {{
+    if (String.IsNullOrEmpty(text) || text.IndexOfAny(new[] {{ (char)10, (char)13, (char)9 }}) != -1)
+        return false;
+    var events = new Input[text.Length * 2];
+    for (int i = 0; i < text.Length; i++) {{
+        events[2*i] = KeyEvent(0, text[i], 4);
+        events[2*i+1] = KeyEvent(0, text[i], 6);
+    }}
+    return Dispatch(events);
+}}
+'@
+{setup}
+foreach ($key in 0x11, 0x10, 0x12, 0x5B, 0x5C) {{
+    if ([QuickKV.PasteGuard]::GetAsyncKeyState($key) -band 0x8000) {{ exit 2 }}
+}}
+$foreground = [QuickKV.PasteGuard]::GetForegroundWindow()
+[uint32]$processId = 0
+[void][QuickKV.PasteGuard]::GetWindowThreadProcessId($foreground, [ref]$processId)
+if ($foreground.ToInt64() -ne {hwnd} -or $processId -ne {pid} -or
+    [QuickKV.PasteGuard]::GetClipboardSequenceNumber() -ne {sequence}) {{ exit 2 }}
+{send}
+"""
+        command = base64.b64encode(script.encode("utf-16-le")).decode("ascii")
         try:
-            success, pid = self._start_detached_process(
-                "powershell.exe",
-                ["-NoProfile", "-WindowStyle", "Hidden", "-Command", ps_script]
+            return subprocess.Popen(
+                ["powershell.exe", "-NoProfile", "-NonInteractive", "-EncodedCommand", command],
+                creationflags=subprocess.CREATE_NO_WINDOW,
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
             )
-            if success:
-                log(f"PowerShell 粘贴命令 ({mode}) 已成功派发。PID={pid}")
-            else:
-                log(f"CRITICAL: PowerShell 粘贴命令 ({mode}) 派发失败，startDetached 返回 False。")
-        except Exception as e:
-            log(f"CRITICAL: 启动 PowerShell 粘贴进程时发生严重错误: {e}")
+        except OSError:
+            log("无法启动落字进程。")
+            return None
 
     def record_entry_usage(self, block):
         """仅记录真正完成输出的普通词条使用行为。"""
@@ -1357,7 +1284,7 @@ if ($targetProcessId -ne {pid} -or [QuickKV.NativeMethods]::GetClipboardSequence
     @Slot()
     def cleanup_and_exit(self):
         log("开始执行程序清理...")
-        self._stop_continuous_paste()
+        self._cancel_pending_paste()
         self.composition_capture.stop()
         if self.composition_hotkey:
             self.composition_hotkey.stop()
@@ -1375,7 +1302,7 @@ if ($targetProcessId -ne {pid} -or [QuickKV.NativeMethods]::GetClipboardSequence
     def confirm_exit(self):
         if not self.popup.composition.flush():
             return QMessageBox.question(
-                self.popup, "草稿尚未保存", "组合输入草稿仍未写入磁盘。仍然退出？",
+                self.popup, "模块正文尚未保存", "组合输入模块正文仍未写入磁盘。仍然退出？",
                 QMessageBox.Yes | QMessageBox.No, QMessageBox.No,
             ) == QMessageBox.Yes
         if not self.popup.continuous_editor.has_draft():
@@ -1806,7 +1733,7 @@ if ($targetProcessId -ne {pid} -or [QuickKV.NativeMethods]::GetClipboardSequence
         log("执行重启...")
         if not self._save_settings() or not self.popup.composition.flush():
             return
-        self._stop_continuous_paste()
+        self._cancel_pending_paste()
         self.composition_capture.stop()
         if self.composition_hotkey:
             self.composition_hotkey.stop()

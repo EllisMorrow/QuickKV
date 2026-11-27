@@ -183,14 +183,17 @@ class CompositionStore:
             draft = json.loads(pending[0]).get("__draft__") if pending else None
             if draft and draft[0] == identity:
                 raise CompositionStorageError("草稿有待恢复的词库事务")
-            connection.execute("""
+            saved = connection.execute("""
                 INSERT INTO drafts VALUES (?, ?, ?)
                 ON CONFLICT(id) DO UPDATE SET revision=excluded.revision, data=excluded.data
                 WHERE excluded.revision > drafts.revision
             """, (identity, revision, encode(record)))
+            if saved.rowcount != 1:
+                return False
             if records is not None:
                 self._write_records(connection, records)
             connection.commit()
+            return True
 
     def draft_ids(self):
         with self._open() as connection:
