@@ -60,9 +60,7 @@ https://github.com/user-attachments/assets/cc4f61c0-a4e3-4677-bbbc-e43e43d8784f
 
 </div>
 
-#### 组合输入演示
-
-[观看组合输入演示（MP4）](https://github.com/EllisMorrow/QuickKV/releases/download/v2.0.2/QuickKV-composition-demo.mp4)
+https://github.com/user-attachments/assets/b0ff784a-baeb-4d76-a4f8-a597a41819cc
 
 ### 图解教程
 
