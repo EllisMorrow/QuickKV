@@ -65,6 +65,43 @@ class CompositionPopupTests(unittest.TestCase):
         self.app.processEvents()
         return popup
 
+    def test_menu_text_and_background_follow_theme_across_submenu_ownership(self):
+        from PySide6.QtGui import QColor
+        from PySide6.QtWidgets import QMenu
+        from core.config import THEMES
+
+        popup = self.open()
+        popup.composition_button.click()
+        workspace_menu = QMenu(popup.composition)
+        workspace_child = workspace_menu.addMenu("Outline actions")
+        tray_menu = QMenu()
+        tray_file_menu = QMenu("Library", tray_menu)
+        tray_child = QMenu("Clipboard")
+        tray_menu.addMenu(tray_child)
+        tray_menu.addMenu(tray_file_menu)
+        menus = (workspace_menu, workspace_child, tray_menu, tray_child, tray_file_menu)
+        actions = [menu.addAction("Theme preview text") for menu in menus]
+        for name in ("dark", "light", "dark"):
+            self.settings.theme = name
+            popup.apply_theme()
+            theme = THEMES[name]
+            fg = QColor(theme["text_color"]).rgb()
+            bg = QColor(theme["bg_color"]).rgb()
+            for menu, action in zip(menus, actions):
+                with self.subTest(theme=name, title=menu.title()):
+                    menu.ensurePolished()
+                    menu.resize(menu.sizeHint())
+                    snapshot = menu.grab().toImage()
+                    scale = snapshot.devicePixelRatio()
+                    row = menu.actionGeometry(action)
+                    pixels = {
+                        snapshot.pixel(x, y)
+                        for x in range(round((row.left() + 8) * scale), round((row.right() - 8) * scale))
+                        for y in range(round((row.top() + 2) * scale), round((row.bottom() - 2) * scale))
+                    }
+                    self.assertIn(bg, pixels)
+                    self.assertIn(fg, pixels)
+
     def test_more_menu_opens_global_group_management_without_editing_draft(self):
         from PySide6.QtCore import QTimer
         popup = self.open()

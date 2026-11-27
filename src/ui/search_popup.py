@@ -481,6 +481,8 @@ class SearchPopup(QWidget):
         self.composition.position_panel()
 
     def apply_theme(self):
+        from ui.menu_theme import menu_style
+
         font = QApplication.font()
         family = getattr(self.settings, "font_family", "")
         if family:
@@ -489,6 +491,7 @@ class SearchPopup(QWidget):
         self.setFont(font)
         theme = THEMES[self.settings.theme]
         font_size = self.settings.font_size
+        QApplication.instance().setStyleSheet(menu_style(theme, font_size))
         self.title_label.setStyleSheet(f"color: {theme['title_color']}; font-size: {font_size-2}px; font-weight: normal; background-color: transparent; border: none; padding-left: 4px;")
         self.container.setStyleSheet(f"background-color: {theme['bg_color']}; border: 1px solid {theme['border_color']}; border-radius: 8px;")
         self.search_box.setStyleSheet(f"background-color: {theme['input_bg_color']}; color: {theme['text_color']}; border: 1px solid {theme['border_color']}; border-radius: 0px; padding: 8px; font-size: {font_size}px; margin: 0px 0px 4px 0px;")
@@ -622,7 +625,6 @@ class SearchPopup(QWidget):
         menu.addMenu(add_to_library_menu)
         
         # 应用主题
-        self.controller.apply_menu_theme(menu)
 
         menu.exec(search_box.mapToGlobal(pos))
         menu.deleteLater()
@@ -674,7 +676,6 @@ class SearchPopup(QWidget):
         menu.addAction(delete_action)
         
         # 应用主题
-        self.controller.apply_menu_theme(menu)
              
         menu.exec(results.viewport().mapToGlobal(pos))
         menu.deleteLater()

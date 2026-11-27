@@ -1380,7 +1380,7 @@ if ($foreground.ToInt64() -ne {hwnd} -or $processId -ne {pid} -or
         new_theme = "light" if self.settings.theme == "dark" else "dark"
         if not self._update_settings(theme=new_theme):
             return
-        log(f"切换主题为: {new_theme}"); self.popup.apply_theme(); self.apply_menu_theme()
+        log(f"切换主题为: {new_theme}"); self.popup.apply_theme()
         if hasattr(self, 'toggle_theme_action'): self.toggle_theme_action.setText(f"切换到 {'夜间' if new_theme == 'light' else '日间'} 模式")
 
     @Slot()
@@ -1579,45 +1579,6 @@ if ($foreground.ToInt64() -ne {hwnd} -or $processId -ne {pid} -or
                 return
             log(f"触发配置已更新 | 组合键: {hot_en} '{normalized_hotkey}' | 连续字符串: {str_en} '{str_val}'")
             QMessageBox.information(None, "成功", "触发方式设置已更新！")
-
-    def apply_menu_theme(self, menu=None):
-        target_menu = menu if menu else self.menu
-        if not target_menu: return
-        
-        theme = THEMES[self.settings.theme]
-        # 使用更具体的选择器确保子菜单继承样式，并增加部分边距修复
-        target_menu.setStyleSheet(f"""
-            QMenu {{
-                background-color: {theme['bg_color']};
-                border: 1px solid {theme['border_color']};
-                border-radius: 4px;
-                color: {theme['text_color']};
-                font-size: {self.settings.font_size}px;
-                padding: 4px;
-            }}
-            QMenu::item {{
-                padding: 6px 24px 6px 24px;
-                border-radius: 4px;
-                background-color: transparent;
-            }}
-            QMenu::item:selected {{
-                background-color: {theme['item_selected_bg']};
-                color: {theme['item_selected_text']};
-            }}
-            QMenu::item:disabled {{
-                color: #888;
-            }}
-            QMenu::separator {{
-                height: 1px;
-                background-color: {theme['border_color']};
-                margin: 4px 0px;
-            }}
-            QMenu::indicator {{
-                width: 13px;
-                height: 13px;
-                left: 6px;
-            }}
-        """)
 
     # --- 新增：剪贴板菜单相关方法 ---
     @Slot()

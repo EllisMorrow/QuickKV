@@ -14,7 +14,7 @@
 
 ## 快速开始
 
-> **v2.0.1** 统一三种模式的落字流程，并扩充首次启动预置。查看 [v2.0.1 更新说明](CHANGELOG.md#201)。
+> **v2.0.2** 修复菜单浅色主题和托盘子菜单配色。查看 [v2.0.2 更新说明](CHANGELOG.md#202)。
 
 1. 从 [Releases](https://github.com/EllisMorrow/QuickKV/releases/latest) 下载并解压 Windows 程序，启动 QuickKV，阅读并确认启动声明。
 2. 在需要输入文字的地方按 `Ctrl + Space`，输入关键词或拼音首字母搜索。
@@ -59,6 +59,10 @@
 https://github.com/user-attachments/assets/cc4f61c0-a4e3-4677-bbbc-e43e43d8784f
 
 </div>
+
+#### 组合输入演示
+
+[观看组合输入演示（MP4）](https://github.com/EllisMorrow/QuickKV/releases/download/v2.0.2/QuickKV-composition-demo.mp4)
 
 ### 图解教程
 

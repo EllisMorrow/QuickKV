@@ -325,7 +325,6 @@ if __name__ == "__main__":
     quit_action.triggered.connect(lambda: app.quit() if controller.confirm_exit() else None)
     menu.addAction(quit_action)
 
-    controller.apply_menu_theme() # 初始化时应用主题
     controller.rebuild_library_menu() # 首次构建手动词库菜单
     if controller.scan_and_update_auto_libraries():
         controller.perform_full_reload()
