@@ -107,6 +107,34 @@ class SettingsReliabilityTests(unittest.TestCase):
             self.assertEqual(settings.transcription_rules, loaded.transcription_rules)
             self.assertFalse(loaded.transcription_enabled)
 
+    def test_legacy_literal_percent_and_escaped_transcription_survive_repeated_saves(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            library = root / "项目 50%.md"
+            library.write_text("- 示例", encoding="utf8")
+            path = root / "config.ini"
+            path.write_text(
+                "[General]\ntranscription_rules = " + json.dumps("保留 %%\n100%").replace("%", "%%")
+                + "\nstring_trigger_str = 50% %(missing)s\nlibraries = "
+                + json.dumps([{"path": str(library), "enabled": True}], ensure_ascii=False)
+                + "\n[Other]\nraw = unknown%token\n",
+                encoding="utf8",
+            )
+            settings = self.settings_for(path)
+            self.assertEqual(settings.transcription_rules, "保留 %%\n100%")
+            self.assertEqual(settings.string_trigger_str, "50% %(missing)s")
+            self.assertEqual(settings.libraries[0]["path"], str(library))
+            settings.string_trigger_str = "%%% %(hotkey)s"
+            settings.accepted_disclaimer_info = {"version": "100%%"}
+            for _ in range(2):
+                self.assertTrue(settings.save())
+                settings = self.settings_for(path)
+                self.assertEqual(settings.string_trigger_str, "%%% %(hotkey)s")
+                self.assertEqual(settings.accepted_disclaimer_info, {"version": "100%%"})
+                self.assertEqual(settings.transcription_rules, "保留 %%\n100%")
+                self.assertEqual(settings.libraries[0]["path"], str(library))
+                self.assertEqual(settings.config.get("Other", "raw", raw=True), "unknown%token")
+
     def test_invalid_number_and_boolean_only_use_their_defaults(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             config_path = Path(temp_dir) / "config.ini"

@@ -829,8 +829,16 @@ class CompositionPopupTests(unittest.TestCase):
         ui.panel.browse_group("task")
         QTest.mouseClick(ui.panel.config, Qt.LeftButton)
         ui.panel.open_category("level-3")
-        QTest.qWait(25)
-        crumbs = {w.text(): w for w in ui.panel.body.findChildren(QPushButton) if w.isVisible()}
+        from time import monotonic
+
+        def visible_crumbs():
+            return {w.text(): w for w in ui.panel.body.findChildren(QPushButton) if w.isVisible()}
+
+        deadline = monotonic() + 2
+        crumbs = visible_crumbs()
+        while not {"▸ Level 1", "▸ Level 3"} <= crumbs.keys() and monotonic() < deadline:
+            QTest.qWait(5)
+            crumbs = visible_crumbs()
         self.assertIn("▸ Level 3", crumbs)
         self.assertFalse(crumbs["▸ Level 3"].isEnabled())
         QTest.mouseClick(crumbs["▸ Level 1"], Qt.LeftButton)

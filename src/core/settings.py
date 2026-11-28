@@ -178,6 +178,9 @@ class SettingsManager:
     def _get(self, section, option, default):
         try:
             return self.config.get(section, option, fallback=default)
+        except configparser.InterpolationError:
+            # Old hand-edited values may contain unescaped literal percent signs.
+            return self.config.get(section, option, raw=True, fallback=default)
         except (configparser.Error, ValueError):
             return default
 
@@ -207,32 +210,32 @@ class SettingsManager:
         candidate['General']['shortcut_code_enabled'] = str(self.shortcut_code_enabled) # 新增：保存快捷码功能开关
         candidate['General']['transcription_enabled'] = str(self.transcription_enabled)
         candidate['General']['transcription_rules'] = json.dumps(self.transcription_rules, ensure_ascii=False).replace('%', '%%')
-        candidate['General']['hotkey'] = self.hotkey
-        candidate['General']['composition_hotkey'] = self.composition_hotkey
+        candidate['General']['hotkey'] = self.hotkey.replace('%', '%%')
+        candidate['General']['composition_hotkey'] = self.composition_hotkey.replace('%', '%%')
         candidate['Window']['width'] = str(self.width)
         candidate['Window']['height'] = str(self.height)
-        candidate['Theme']['mode'] = self.theme
+        candidate['Theme']['mode'] = self.theme.replace('%', '%%')
         candidate['Font']['size'] = str(self.font_size)
-        candidate['Font']['family'] = self.font_family
+        candidate['Font']['family'] = self.font_family.replace('%', '%%')
         candidate['Search']['multi_word_search'] = str(self.multi_word_search)
         candidate['Search']['pinyin_initial_search'] = str(self.pinyin_initial_search)
         candidate['Search']['highlight_matches'] = str(self.highlight_matches) # 新增
         candidate['UI']['word_wrap_enabled'] = str(self.word_wrap_enabled)
         candidate['UI']['show_source_enabled'] = str(self.show_source_enabled)
-        candidate['General']['libraries'] = json.dumps(self.libraries, ensure_ascii=False)
-        candidate['General']['auto_libraries'] = json.dumps(self.auto_libraries, ensure_ascii=False)
+        candidate['General']['libraries'] = json.dumps(self.libraries, ensure_ascii=False).replace('%', '%%')
+        candidate['General']['auto_libraries'] = json.dumps(self.auto_libraries, ensure_ascii=False).replace('%', '%%')
         candidate['Clipboard']['enabled'] = str(self.clipboard_memory_enabled)
         candidate['Clipboard']['count'] = str(self.clipboard_memory_count)
         candidate['Clipboard']['auto_clear_enabled'] = str(self.clipboard_auto_clear_enabled)
         candidate['Clipboard']['auto_clear_minutes'] = str(self.clipboard_auto_clear_minutes)
         candidate['Restart']['enabled'] = str(self.auto_restart_enabled)
         candidate['Restart']['interval_minutes'] = str(self.auto_restart_interval)
-        candidate['Paste']['mode'] = self.paste_mode
-        candidate['General']['accepted_disclaimer_info'] = json.dumps(self.accepted_disclaimer_info, ensure_ascii=False)
+        candidate['Paste']['mode'] = self.paste_mode.replace('%', '%%')
+        candidate['General']['accepted_disclaimer_info'] = json.dumps(self.accepted_disclaimer_info, ensure_ascii=False).replace('%', '%%')
         
         # --- 新增：连续字符串触发器 ---
         candidate['General']['string_trigger_enabled'] = str(self.string_trigger_enabled)
-        candidate['General']['string_trigger_str'] = self.string_trigger_str
+        candidate['General']['string_trigger_str'] = self.string_trigger_str.replace('%', '%%')
         
         directory = os.path.dirname(os.path.abspath(self.file_path))
         temp_path = None

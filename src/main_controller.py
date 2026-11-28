@@ -910,8 +910,10 @@ if ($foreground.ToInt64() -ne {hwnd} -or $processId -ne {pid} -or
                 return None
             input_values = dialog.get_values()
 
-        clipboard = self.app.clipboard()
-        clipboard_text = clipboard.text() if clipboard.mimeData().hasText() else ""
+        clipboard_text = ""
+        if prepared_template.uses_clipboard:
+            clipboard = self.app.clipboard()
+            clipboard_text = clipboard.text() if clipboard.mimeData().hasText() else ""
 
         try:
             return self.template_renderer.render(

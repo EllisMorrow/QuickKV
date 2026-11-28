@@ -6,4 +6,4 @@ pynput
 fuzzywuzzy
 python-Levenshtein
 watchdog
-python-liquid
+python-liquid==2.3.1
